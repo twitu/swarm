@@ -22,27 +22,29 @@
 
 module Swarm.Language.Parse
   ( -- * Parsers
-
-    Parser, parsePolytype, parseType, parseTerm
+    Parser
+  , parsePolytype
+  , parseType
+  , parseTerm
 
     -- * Utility functions
-
-  , runParser, runParserTH, readTerm
-
+  , runParser
+  , runParserTH
+  , readTerm
   ) where
 
 import           Control.Monad.Reader
 import           Data.Bifunctor
 import           Data.Char
-import           Data.Maybe                     (fromMaybe)
-import           Data.Text                      (Text)
+import           Data.Maybe                     ( fromMaybe )
+import           Data.Text                      ( Text )
 import           Data.Void
 import           Witch
 
 import           Control.Monad.Combinators.Expr
-import           Text.Megaparsec                hiding (runParser)
+import           Text.Megaparsec         hiding ( runParser )
 import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer     as L
+import qualified Text.Megaparsec.Char.Lexer    as L
 
 import           Swarm.Language.Syntax
 import           Swarm.Language.Types
@@ -63,21 +65,55 @@ type Parser = ReaderT Antiquoting (Parsec Void Text)
 -- | List of reserved words that cannot be used as variable names.
 reservedWords :: [String]
 reservedWords =
-  [ "left", "right", "back", "forward", "north", "south", "east", "west"
-  , "wait", "selfdestruct", "move", "turn", "grab", "place", "give", "make"
-  , "build", "run", "getx", "gety"
-  , "random", "say", "view", "appear", "create", "ishere"
-  , "int", "string", "dir", "bool", "cmd"
-  , "let", "def", "end", "in", "if", "true", "false", "not", "fst", "snd"
-  , "forall", "try", "raise"
+  [ "left"
+  , "right"
+  , "back"
+  , "forward"
+  , "north"
+  , "south"
+  , "east"
+  , "west"
+  , "wait"
+  , "selfdestruct"
+  , "move"
+  , "turn"
+  , "grab"
+  , "place"
+  , "give"
+  , "make"
+  , "build"
+  , "run"
+  , "getx"
+  , "gety"
+  , "random"
+  , "say"
+  , "view"
+  , "appear"
+  , "create"
+  , "ishere"
+  , "int"
+  , "string"
+  , "dir"
+  , "bool"
+  , "cmd"
+  , "let"
+  , "def"
+  , "end"
+  , "in"
+  , "if"
+  , "true"
+  , "false"
+  , "not"
+  , "fst"
+  , "snd"
+  , "forall"
+  , "try"
+  , "raise"
   ]
 
 -- | Skip spaces and comments.
 sc :: Parser ()
-sc = L.space
-  space1
-  (L.skipLineComment "//")
-  (L.skipBlockComment "/*" "*/")
+sc = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
 
 -- | In general, we follow the convention that every token parser
 --   assumes no leading whitespace and consumes all trailing
@@ -94,19 +130,21 @@ symbol = L.symbol sc
 --   prefix of a longer variable name, and allowing the parser to
 --   backtrack if it fails.
 reserved :: Text -> Parser ()
-reserved w = (lexeme . try) $ string' w *> notFollowedBy (alphaNumChar <|> char '_')
+reserved w =
+  (lexeme . try) $ string' w *> notFollowedBy (alphaNumChar <|> char '_')
 
 -- | Parse an identifier, i.e. any non-reserved string containing
 --   alphanumeric characters and underscores and not starting with a
 --   number.
 identifier :: Parser Text
 identifier = (lexeme . try) (p >>= check) <?> "variable name"
-  where
-    p = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_')
-    check x
-      | map toLower x `elem` reservedWords
-      = fail $ "reserved word " ++ x ++ " cannot be used as variable name"
-      | otherwise = return (into @Text x)
+ where
+  p = (:) <$> (letterChar <|> char '_') <*> many (alphaNumChar <|> char '_')
+  check x
+    | map toLower x `elem` reservedWords
+    = fail $ "reserved word " ++ x ++ " cannot be used as variable name"
+    | otherwise
+    = return (into @Text x)
 
 -- | Parse a string literal (including escape sequences) in double quotes.
 stringLiteral :: Parser Text
@@ -131,101 +169,155 @@ parens = between (symbol "(") (symbol ")")
 --   period) followed by a type.  Note that anything accepted by
 --   'parseType' is also accepted by 'parsePolytype'.
 parsePolytype :: Parser Polytype
-parsePolytype = Forall
-  <$> (fromMaybe [] <$> optional (reserved "forall" *> some identifier <* symbol "."))
-  <*> parseType
+parsePolytype =
+  Forall
+    <$> (   fromMaybe []
+        <$> optional (reserved "forall" *> some identifier <* symbol ".")
+        )
+    <*> parseType
 
 -- | Parse a Swarm language (mono)type.
 parseType :: Parser Type
 parseType = makeExprParser parseTypeAtom table
-  where
-    table =
-      [ [ InfixR ((:->:) <$ symbol "->") ]
-      , [ InfixR ((:*:) <$ symbol "*") ]
-      ]
+ where
+  table = [[InfixR ((:->:) <$ symbol "->")], [InfixR ((:*:) <$ symbol "*")]]
 
 parseTypeAtom :: Parser Type
 parseTypeAtom =
-      TyUnit   <$ symbol "()"
-  <|> TyVar    <$> identifier
-  <|> TyInt    <$ reserved "int"
-  <|> TyString <$ reserved "string"
-  <|> TyDir    <$ reserved "dir"
-  <|> TyBool   <$ reserved "bool"
-  <|> TyCmd    <$> (reserved "cmd" *> parseTypeAtom)
-  <|> parens parseType
+  TyUnit
+    <$  symbol "()"
+    <|> TyVar
+    <$> identifier
+    <|> TyInt
+    <$  reserved "int"
+    <|> TyString
+    <$  reserved "string"
+    <|> TyDir
+    <$  reserved "dir"
+    <|> TyBool
+    <$  reserved "bool"
+    <|> TyCmd
+    <$> (reserved "cmd" *> parseTypeAtom)
+    <|> parens parseType
 
 parseDirection :: Parser Direction
 parseDirection =
-      Lft    <$ reserved "left"
-  <|> Rgt    <$ reserved "right"
-  <|> Back   <$ reserved "back"
-  <|> Fwd    <$ reserved "forward"
-  <|> North  <$ reserved "north"
-  <|> South  <$ reserved "south"
-  <|> East   <$ reserved "east"
-  <|> West   <$ reserved "west"
+  Lft
+    <$  reserved "left"
+    <|> Rgt
+    <$  reserved "right"
+    <|> Back
+    <$  reserved "back"
+    <|> Fwd
+    <$  reserved "forward"
+    <|> North
+    <$  reserved "north"
+    <|> South
+    <$  reserved "south"
+    <|> East
+    <$  reserved "east"
+    <|> West
+    <$  reserved "west"
 
 -- XXX I wish there was a better way to do this that would warn us to
 -- add a new case to the parser whenever we add a new constructor to
 -- 'Const'.
 parseConst :: Parser Const
 parseConst =
-      Wait    <$ reserved "wait"
-  <|> Selfdestruct <$ reserved "selfdestruct"
-  <|> Return  <$ reserved "return"
-  <|> Move    <$ reserved "move"
-  <|> Turn    <$ reserved "turn"
-  <|> Grab    <$ reserved "grab"
-  <|> Place   <$ reserved "place"
-  <|> Give    <$ reserved "give"
-  <|> Make    <$ reserved "make"
-  <|> Build   <$ reserved "build"
-  <|> Run     <$ reserved "run"
-  <|> GetX    <$ reserved "getx"
-  <|> GetY    <$ reserved "gety"
-  <|> Blocked <$ reserved "blocked"
-  <|> Random  <$ reserved "random"
-  <|> Say     <$ reserved "say"
-  <|> View    <$ reserved "view"
-  <|> Appear  <$ reserved "appear"
-  <|> Create  <$ reserved "create"
-  <|> Ishere  <$ reserved "ishere"
-  <|> If      <$ reserved "if"
-  <|> Not     <$ reserved "not"
-  <|> Fst     <$ reserved "fst"
-  <|> Snd     <$ reserved "snd"
-  <|> Try     <$ reserved "try"
-  <|> Raise   <$ reserved "raise"
+  Wait
+    <$  reserved "wait"
+    <|> Selfdestruct
+    <$  reserved "selfdestruct"
+    <|> Return
+    <$  reserved "return"
+    <|> Move
+    <$  reserved "move"
+    <|> Turn
+    <$  reserved "turn"
+    <|> Grab
+    <$  reserved "grab"
+    <|> Place
+    <$  reserved "place"
+    <|> Give
+    <$  reserved "give"
+    <|> Make
+    <$  reserved "make"
+    <|> Build
+    <$  reserved "build"
+    <|> Run
+    <$  reserved "run"
+    <|> GetX
+    <$  reserved "getx"
+    <|> GetY
+    <$  reserved "gety"
+    <|> Blocked
+    <$  reserved "blocked"
+    <|> Random
+    <$  reserved "random"
+    <|> Say
+    <$  reserved "say"
+    <|> View
+    <$  reserved "view"
+    <|> Appear
+    <$  reserved "appear"
+    <|> Create
+    <$  reserved "create"
+    <|> Ishere
+    <$  reserved "ishere"
+    <|> If
+    <$  reserved "if"
+    <|> Not
+    <$  reserved "not"
+    <|> Fst
+    <$  reserved "fst"
+    <|> Snd
+    <$  reserved "snd"
+    <|> Try
+    <$  reserved "try"
+    <|> Raise
+    <$  reserved "raise"
 
 parseTermAtom :: Parser Term
 parseTermAtom =
-      TUnit   <$  symbol "()"
-  <|> TConst  <$> parseConst
-  <|> TVar    <$> identifier
-  <|> TDir    <$> parseDirection
-  <|> TInt    <$> integer
-  <|> TString <$> stringLiteral
-  <|> TBool   <$> ((True <$ reserved "true") <|> (False <$ reserved "false"))
-  <|> TLam    <$> (symbol "\\" *> identifier)
-              <*> optional (symbol ":" *> parseType)
-              <*> (symbol "." *> parseTerm)
-  <|> TLet    <$> (reserved "let" *> identifier)
-              <*> optional (symbol ":" *> parsePolytype)
-              <*> (symbol "=" *> parseTerm)
-              <*> (reserved "in" *> parseTerm)
-  <|> TDef    <$> (reserved "def" *> identifier)
-              <*> optional (symbol ":" *> parsePolytype)
-              <*> (symbol "=" *> parseTerm <* reserved "end")
-  <|> parens parseTerm
-  <|> TConst Noop <$ try (symbol "{" *> symbol "}")
-  <|> braces parseTerm
-  <|> (ask >>= (guard . (==AllowAntiquoting)) >> parseAntiquotation)
+  TUnit
+    <$  symbol "()"
+    <|> TConst
+    <$> parseConst
+    <|> TVar
+    <$> identifier
+    <|> TDir
+    <$> parseDirection
+    <|> TInt
+    <$> integer
+    <|> TString
+    <$> stringLiteral
+    <|> TBool
+    <$> ((True <$ reserved "true") <|> (False <$ reserved "false"))
+    <|> TLam
+    <$> (symbol "\\" *> identifier)
+    <*> optional (symbol ":" *> parseType)
+    <*> (symbol "." *> parseTerm)
+    <|> TLet
+    <$> (reserved "let" *> identifier)
+    <*> optional (symbol ":" *> parsePolytype)
+    <*> (symbol "=" *> parseTerm)
+    <*> (reserved "in" *> parseTerm)
+    <|> TDef
+    <$> (reserved "def" *> identifier)
+    <*> optional (symbol ":" *> parsePolytype)
+    <*> (symbol "=" *> parseTerm <* reserved "end")
+    <|> parens parseTerm
+    <|> TConst Noop
+    <$  try (symbol "{" *> symbol "}")
+    <|> braces parseTerm
+    <|> (ask >>= (guard . (== AllowAntiquoting)) >> parseAntiquotation)
 
 parseAntiquotation :: Parser Term
 parseAntiquotation =
-      TAntiString <$> (lexeme . try) (symbol "$str:" *> identifier)
-  <|> TAntiInt    <$> (lexeme . try) (symbol "$int:" *> identifier)
+  TAntiString
+    <$> (lexeme . try) (symbol "$str:" *> identifier)
+    <|> TAntiInt
+    <$> (lexeme . try) (symbol "$int:" *> identifier)
 
 -- | Parse a Swarm language term.
 parseTerm :: Parser Term
@@ -236,9 +328,9 @@ mkBindChain stmts = case last stmts of
   Binder _ _ -> fail "Last command in a chain must not have a binder"
   BareTerm t -> return $ foldr mkBind t (init stmts)
 
-  where
-    mkBind (BareTerm t1) t2 = TBind Nothing t1 t2
-    mkBind (Binder x t1) t2 = TBind (Just x) t1 t2
+ where
+  mkBind (BareTerm t1) t2 = TBind Nothing t1 t2
+  mkBind (Binder x t1) t2 = TBind (Just x) t1 t2
 
 data Stmt
   = BareTerm      Term
@@ -246,8 +338,7 @@ data Stmt
   deriving (Show)
 
 parseStmt :: Parser Stmt
-parseStmt =
-  mkStmt <$> optional (try (identifier <* symbol "<-")) <*> parseExpr
+parseStmt = mkStmt <$> optional (try (identifier <* symbol "<-")) <*> parseExpr
 
 mkStmt :: Maybe Text -> Term -> Stmt
 mkStmt Nothing  = BareTerm
@@ -260,40 +351,40 @@ mkStmt (Just x) = Binder x
 --   This function fix that by converting the Apps into Binds, so that it results in:
 --     Bind a (Bind b (Bind c))
 fixDefMissingSemis :: Term -> Term
-fixDefMissingSemis term =
-  case nestedDefs term [] of
-    [] -> term
-    defs -> foldr1 (TBind Nothing) defs
-  where
-    nestedDefs term' acc = case term' of
-      def@TDef {} -> def : acc
-      TApp nestedTerm def@TDef {} -> nestedDefs nestedTerm (def : acc)
-      -- Otherwise returns an empty list to keep the term unchanged
-      _ -> []
+fixDefMissingSemis term = case nestedDefs term [] of
+  []   -> term
+  defs -> foldr1 (TBind Nothing) defs
+ where
+  nestedDefs term' acc = case term' of
+    def@TDef{}                 -> def : acc
+    TApp nestedTerm def@TDef{} -> nestedDefs nestedTerm (def : acc)
+    -- Otherwise returns an empty list to keep the term unchanged
+    _                          -> []
 
 parseExpr :: Parser Term
 parseExpr = fixDefMissingSemis <$> makeExprParser parseTermAtom table
-  where
-    table =
-      [ [ InfixL (TApp <$ string "") ]
-      , [ InfixR (mkOp (Arith Exp) <$ symbol "^") ]
-      , [ Prefix (TApp (TConst Neg) <$ symbol "-") ]
-      , [ InfixL (mkOp (Arith Mul) <$ symbol "*")
-        , InfixL (mkOp (Arith Div) <$ symbol "/")
-        ]
-      , [ InfixL (mkOp (Arith Add) <$ symbol "+")
-        , InfixL (mkOp (Arith Sub) <$ symbol "-")
-        ]
-      , map (\(s, op) -> InfixN (mkOp (Cmp op) <$ symbol s))
-        [ ("==", CmpEq)
-        , ("/=", CmpNeq)
-        , ("<=", CmpLeq)
-        , (">=", CmpGeq)
-        , ("<", CmpLt)
-        , (">", CmpGt)
-        ]
-      , [ InfixR (TPair <$ symbol ",") ]
+ where
+  table =
+    [ [InfixL (TApp <$ string "")]
+    , [InfixR (mkOp (Arith Exp) <$ symbol "^")]
+    , [Prefix (TApp (TConst Neg) <$ symbol "-")]
+    , [ InfixL (mkOp (Arith Mul) <$ symbol "*")
+      , InfixL (mkOp (Arith Div) <$ symbol "/")
       ]
+    , [ InfixL (mkOp (Arith Add) <$ symbol "+")
+      , InfixL (mkOp (Arith Sub) <$ symbol "-")
+      ]
+    , map
+      (\(s, op) -> InfixN (mkOp (Cmp op) <$ symbol s))
+      [ ("==", CmpEq)
+      , ("/=", CmpNeq)
+      , ("<=", CmpLeq)
+      , (">=", CmpGeq)
+      , ("<" , CmpLt)
+      , (">" , CmpGt)
+      ]
+    , [InfixR (TPair <$ symbol ",")]
+    ]
 
 mkOp :: Const -> Term -> Term -> Term
 mkOp c = TApp . TApp (TConst c)
@@ -304,35 +395,38 @@ mkOp c = TApp . TApp (TConst c)
 -- | Run a parser on some input text, returning either the result or a
 --   pretty-printed parse error message.
 runParser :: Parser a -> Text -> Either Text a
-runParser p t = first (from . errorBundlePretty) (parse (runReaderT p DisallowAntiquoting) "" t)
+runParser p t = first (from . errorBundlePretty)
+                      (parse (runReaderT p DisallowAntiquoting) "" t)
 
 -- | A utility for running a parser in an arbitrary 'MonadFail' (which
 --   is going to be the TemplateHaskell 'Q' monad --- see
 --   "Swarm.Language.Parse.QQ"), with a specified source position.
-runParserTH :: (Monad m, MonadFail m) => (String, Int, Int) -> Parser a -> String -> m a
+runParserTH
+  :: (Monad m, MonadFail m) => (String, Int, Int) -> Parser a -> String -> m a
 runParserTH (file, line, col) p s =
   case snd (runParser' (runReaderT (fully p) AllowAntiquoting) initState) of
-    Left err -> fail $ errorBundlePretty err
-    Right e  -> return e
-  where
+    Left  err -> fail $ errorBundlePretty err
+    Right e   -> return e
+ where
     -- This is annoying --- megaparsec does not export its function to
     -- construct an initial parser state, so we can't just use that
     -- and then change the one field we need to be different (the
     -- pstateSourcePos). We have to copy-paste the whole thing.
-    initState :: State Text Void
-    initState = State
-      { stateInput = from s,
-        stateOffset = 0,
-        statePosState =
-          PosState
-            { pstateInput = from s,
-              pstateOffset = 0,
-              pstateSourcePos = SourcePos file (mkPos line) (mkPos col),
-              pstateTabWidth = defaultTabWidth,
-              pstateLinePrefix = ""
-            },
-        stateParseErrors = []
-      }
+  initState :: State Text Void
+  initState = State
+    { stateInput       = from s
+    , stateOffset      = 0
+    , statePosState    = PosState
+                           { pstateInput      = from s
+                           , pstateOffset     = 0
+                           , pstateSourcePos  = SourcePos file
+                                                          (mkPos line)
+                                                          (mkPos col)
+                           , pstateTabWidth   = defaultTabWidth
+                           , pstateLinePrefix = ""
+                           }
+    , stateParseErrors = []
+    }
 
 -- | Run a parser "fully", consuming leading whitespace and ensuring
 --   that the parser extends all the way to eof.

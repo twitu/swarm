@@ -14,14 +14,16 @@
 
 module Swarm.App where
 
-import           Control.Concurrent   (forkIO, threadDelay)
+import           Control.Concurrent             ( forkIO
+                                                , threadDelay
+                                                )
 
 import           Brick
 import           Brick.BChan
-import qualified Graphics.Vty         as V
+import qualified Graphics.Vty                  as V
 
 import           Control.Monad.Except
-import qualified Data.Text.IO         as T
+import qualified Data.Text.IO                  as T
 import           Swarm.TUI.Attr
 import           Swarm.TUI.Controller
 import           Swarm.TUI.Model
@@ -29,13 +31,12 @@ import           Swarm.TUI.View
 
 -- | The definition of the app used by the @brick@ library.
 app :: App AppState AppEvent Name
-app = App
-  { appDraw         = drawUI
-  , appChooseCursor = chooseCursor
-  , appHandleEvent  = handleEvent
-  , appStartEvent   = \s -> s <$ enablePasteMode
-  , appAttrMap      = const swarmAttrMap
-  }
+app = App { appDraw         = drawUI
+          , appChooseCursor = chooseCursor
+          , appHandleEvent  = handleEvent
+          , appStartEvent   = \s -> s <$ enablePasteMode
+          , appAttrMap      = const swarmAttrMap
+          }
 
 -- | The main @IO@ computation which initializes the state, sets up
 --   some communication channels, and runs the UI.
@@ -43,8 +44,8 @@ appMain :: IO ()
 appMain = do
   res <- runExceptT initAppState
   case res of
-    Left errMsg -> T.putStrLn errMsg
-    Right s -> do
+    Left  errMsg -> T.putStrLn errMsg
+    Right s      -> do
 
       -- Send Frame events as at a reasonable rate for 30 fps. The
       -- game is responsible for figuring out how many steps to take
@@ -61,7 +62,7 @@ appMain = do
       -- and do another write.
 
       chan <- newBChan 5
-      _ <- forkIO $ forever $ do
+      _    <- forkIO $ forever $ do
         threadDelay 33_333        -- cap maximum framerate at 30 FPS
         writeBChan chan Frame
 
@@ -76,5 +77,7 @@ enablePasteMode :: EventM s ()
 enablePasteMode = do
   vty <- getVtyHandle
   let output = V.outputIface vty
-  when (V.supportsMode output V.BracketedPaste) $
-    liftIO $ V.setMode output V.BracketedPaste True
+  when (V.supportsMode output V.BracketedPaste) $ liftIO $ V.setMode
+    output
+    V.BracketedPaste
+    True

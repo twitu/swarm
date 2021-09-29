@@ -19,14 +19,16 @@
 
 module Swarm.Language.Context where
 
-import           Control.Lens.Empty   (AsEmpty (..))
-import           Control.Lens.Prism   (prism)
-import           Control.Monad.Reader (MonadReader, local)
-import           Data.Data            (Data)
-import           Data.Map             (Map)
-import qualified Data.Map             as M
-import           Data.Text            (Text)
-import           Prelude              hiding (lookup)
+import           Control.Lens.Empty             ( AsEmpty(..) )
+import           Control.Lens.Prism             ( prism )
+import           Control.Monad.Reader           ( MonadReader
+                                                , local
+                                                )
+import           Data.Data                      ( Data )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as M
+import           Data.Text                      ( Text )
+import           Prelude                 hiding ( lookup )
 
 -- | We use 'Text' values to represent variables.
 type Var = Text
@@ -40,15 +42,14 @@ instance Semigroup (Ctx t) where
   (<>) = union
 
 instance Monoid (Ctx t) where
-  mempty = empty
+  mempty  = empty
   mappend = (<>)
 
 instance AsEmpty (Ctx t) where
   _Empty = prism (const empty) isEmpty
-    where
-      isEmpty (Ctx c)
-        | M.null c = Right ()
-        | otherwise = Left (Ctx c)
+   where
+    isEmpty (Ctx c) | M.null c  = Right ()
+                    | otherwise = Left (Ctx c)
 
 -- | The empty context.
 empty :: Ctx t
@@ -63,7 +64,7 @@ lookup :: Var -> Ctx t -> Maybe t
 lookup x (Ctx c) = M.lookup x c
 
 -- | Get the list of key-value associations from a context.
-assocs :: Ctx t -> [(Var,t)]
+assocs :: Ctx t -> [(Var, t)]
 assocs = M.assocs . unCtx
 
 -- | Add a key-value binding to a context (overwriting the old one if

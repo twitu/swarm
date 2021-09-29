@@ -12,16 +12,19 @@
 -----------------------------------------------------------------------------
 
 module Swarm.TUI.List
-  ( handleListEventWithSeparators )
-  where
+  ( handleListEventWithSeparators
+  ) where
 
-import           Control.Lens       (set, (&), (^.))
-import           Data.Foldable      (toList)
-import           Data.List          (find)
+import           Control.Lens                   ( (&)
+                                                , (^.)
+                                                , set
+                                                )
+import           Data.Foldable                  ( toList )
+import           Data.List                      ( find )
 
-import           Brick              (EventM)
-import qualified Brick.Widgets.List as BL
-import qualified Graphics.Vty       as V
+import           Brick                          ( EventM )
+import qualified Brick.Widgets.List            as BL
+import qualified Graphics.Vty                  as V
 
 -- | Handle a list event, taking an extra predicate to identify which
 --   list elements are separators; separators will be skipped if
@@ -32,24 +35,23 @@ handleListEventWithSeparators
   -> (e -> Bool)  -- ^ Is this element a separator?
   -> BL.GenericList n t e
   -> EventM n (BL.GenericList n t e)
-handleListEventWithSeparators e isSep theList =
-  case e of
-    V.EvKey V.KUp [] -> return $ listFindByStrategy bwdExclusive isItem theList
-    V.EvKey V.KDown [] -> return $ listFindByStrategy fwdExclusive isItem theList
-    V.EvKey V.KHome [] ->
-      return $ listFindByStrategy fwdInclusive isItem
-             $ BL.listMoveToBeginning theList
-    V.EvKey V.KEnd []      ->
-      return $ listFindByStrategy bwdInclusive isItem
-             -- work around https://github.com/jtdaugherty/brick/issues/337 for now
-             $ BL.listMoveTo (max 0 $ length (BL.listElements theList) - 1) theList
-    V.EvKey V.KPageDown [] ->
-      listFindByStrategy bwdInclusive isItem <$> BL.listMovePageDown theList
-    V.EvKey V.KPageUp []   ->
-      listFindByStrategy fwdInclusive isItem <$> BL.listMovePageUp theList
-    _                      -> return theList
-  where
-    isItem = not . isSep
+handleListEventWithSeparators e isSep theList = case e of
+  V.EvKey V.KUp   [] -> return $ listFindByStrategy bwdExclusive isItem theList
+  V.EvKey V.KDown [] -> return $ listFindByStrategy fwdExclusive isItem theList
+  V.EvKey V.KHome [] ->
+    return $ listFindByStrategy fwdInclusive isItem $ BL.listMoveToBeginning
+      theList
+  V.EvKey V.KEnd [] ->
+    return
+      $ listFindByStrategy bwdInclusive isItem
+           -- work around https://github.com/jtdaugherty/brick/issues/337 for now
+      $ BL.listMoveTo (max 0 $ length (BL.listElements theList) - 1) theList
+  V.EvKey V.KPageDown [] ->
+    listFindByStrategy bwdInclusive isItem <$> BL.listMovePageDown theList
+  V.EvKey V.KPageUp [] ->
+    listFindByStrategy fwdInclusive isItem <$> BL.listMovePageUp theList
+  _ -> return theList
+  where isItem = not . isSep
 
 -- | Which direction to search: forward or backward from the current location.
 data FindDir = FindFwd | FindBwd deriving (Eq, Ord, Show, Enum)
@@ -82,26 +84,31 @@ listFindByStrategy
 listFindByStrategy (FindStrategy dir cur) test l =
     -- Figure out what index to split on.  We will call splitAt on
     -- (current selected index + adj).
-    let adj
-            -- If we're search forward, split on current index; if
-            -- finding backward, split on current + 1 (so that the
-            -- left-hand split will include the current index).
-            = case dir of { FindFwd -> 0; FindBwd -> 1 }
+  let adj =
+        case dir of
+            FindFwd -> 0
+            FindBwd -> 1
 
-            -- ... but if we're excluding the current index, swap that, so
-            -- the current index will be excluded rather than included in
-            -- the part of the split we're going to look at.
-            & case cur of { IncludeCurrent -> id; ExcludeCurrent -> (1-) }
+          -- ... but if we're excluding the current index, swap that, so
+          -- the current index will be excluded rather than included in
+          -- the part of the split we're going to look at.
+          & case cur of
+              IncludeCurrent -> id
+              ExcludeCurrent -> (1 -)
+          -- If we're search forward, split on current index; if
+          -- finding backward, split on current + 1 (so that the
+          -- left-hand split will include the current index).
 
-        -- Split at the index we computed.
-        start = maybe 0 (+adj) (l ^. BL.listSelectedL)
-        (h, t) = BL.splitAt start (l ^. BL.listElementsL)
+      -- Split at the index we computed.
+      start      = maybe 0 (+ adj) (l ^. BL.listSelectedL)
+      (h, t)     = BL.splitAt start (l ^. BL.listElementsL)
 
-        -- Now look at either the right-hand split if searching
-        -- forward, or the reversed left-hand split if searching
-        -- backward.
-        headResult = find (test . snd) . reverse . zip [0..]     . toList $ h
-        tailResult = find (test . snd)           . zip [start..] . toList $ t
-        result = case dir of {FindFwd -> tailResult; FindBwd -> headResult}
-
-    in maybe id (set BL.listSelectedL . Just . fst) result l
+      -- Now look at either the right-hand split if searching
+      -- forward, or the reversed left-hand split if searching
+      -- backward.
+      headResult = find (test . snd) . reverse . zip [0 ..] . toList $ h
+      tailResult = find (test . snd) . zip [start ..] . toList $ t
+      result     = case dir of
+        FindFwd -> tailResult
+        FindBwd -> headResult
+  in  maybe id (set BL.listSelectedL . Just . fst) result l

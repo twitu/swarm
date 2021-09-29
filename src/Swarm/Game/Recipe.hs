@@ -21,34 +21,40 @@
 
 module Swarm.Game.Recipe
   ( -- * Ingredient lists and recipes
-
-    IngredientList, Recipe(..), recipeInputs, recipeOutputs
+    IngredientList
+  , Recipe(..)
+  , recipeInputs
+  , recipeOutputs
   , prettyRecipe
 
     -- * Loading recipes
-  , loadRecipes, outRecipeMap, inRecipeMap
+  , loadRecipes
+  , outRecipeMap
+  , inRecipeMap
 
     -- * Looking up recipes
-  , recipesFor, make
-
+  , recipesFor
+  , make
   ) where
 
-import           Control.Lens           hiding (from, (.=))
+import           Control.Lens            hiding ( (.=)
+                                                , from
+                                                )
 import           Control.Monad.Except
-import           Data.Bifunctor         (second)
+import           Data.Bifunctor                 ( second )
 import           Data.Either.Validation
-import           Data.IntMap            (IntMap)
-import qualified Data.IntMap            as IM
-import           Data.List              (foldl')
-import           Data.Maybe             (fromMaybe)
-import           Data.Text              (Text)
-import qualified Data.Text              as T
+import           Data.IntMap                    ( IntMap )
+import qualified Data.IntMap                   as IM
+import           Data.List                      ( foldl' )
+import           Data.Maybe                     ( fromMaybe )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 import           Witch
 
 import           Data.Yaml
 
 import           Paths_swarm
-import           Swarm.Game.Entity      as E
+import           Swarm.Game.Entity             as E
 import           Swarm.Util
 
 -- | An ingredient list is a list of entities with multiplicity.  It
@@ -80,52 +86,54 @@ recipeOutputs :: Lens' (Recipe e) (IngredientList e)
 ------------------------------------------------------------
 
 instance ToJSON (Recipe Text) where
-  toJSON (Recipe ins outs) = object
-    [ "in"  .= ins
-    , "out" .= outs
-    ]
+  toJSON (Recipe ins outs) = object ["in" .= ins, "out" .= outs]
 
 instance FromJSON (Recipe Text) where
-  parseJSON = withObject "Recipe" $ \v ->
-    Recipe <$> v .: "in" <*> v .: "out"
+  parseJSON = withObject "Recipe" $ \v -> Recipe <$> v .: "in" <*> v .: "out"
 
 -- | Given an 'EntityMap', turn a list of recipes containing /names/
 --   of entities into a list of recipes containing actual 'Entity'
 --   records; or.
-resolveRecipes :: EntityMap -> [Recipe Text] -> Validation [Text] [Recipe Entity]
-resolveRecipes em = (traverse . traverse) (\t -> maybe (Failure [t]) Success (lookupEntityName t em))
+resolveRecipes
+  :: EntityMap -> [Recipe Text] -> Validation [Text] [Recipe Entity]
+resolveRecipes em = (traverse . traverse)
+  (\t -> maybe (Failure [t]) Success (lookupEntityName t em))
 
 -- | Given an already loaded 'EntityMap', try to load a list of
 --   recipes from the data file @recipes.yaml@.
 loadRecipes :: MonadIO m => EntityMap -> m (Either Text [Recipe Entity])
 loadRecipes em = runExceptT $ do
-    fileName <- liftIO $ getDataFileName "recipes.yaml"
-    res <- liftIO $ decodeFileEither @[Recipe Text] fileName
-    textRecipes <- res `isRightOr` (from . prettyPrintParseException)
-    resolveRecipes em textRecipes `isSuccessOr`
-      (T.append "Unknown entities in recipe(s): " . T.intercalate ", ")
+  fileName    <- liftIO $ getDataFileName "recipes.yaml"
+  res         <- liftIO $ decodeFileEither @[Recipe Text] fileName
+  textRecipes <- res `isRightOr` (from . prettyPrintParseException)
+  resolveRecipes em textRecipes
+    `isSuccessOr` (T.append "Unknown entities in recipe(s): " . T.intercalate
+                    ", "
+                  )
 
 ------------------------------------------------------------
 
 -- | Pretty-print a recipe in the form @input1 + input2 -> output1 + output2@.
 prettyRecipe :: Recipe Entity -> Text
 prettyRecipe (Recipe ins outs) =
-  T.concat [ prettyIngredientList ins, " -> ", prettyIngredientList outs ]
+  T.concat [prettyIngredientList ins, " -> ", prettyIngredientList outs]
 
 -- | Pretty-print an ingredient list in the form @n1 input1 + n2 input2 + ...@
 prettyIngredientList :: IngredientList Entity -> Text
 prettyIngredientList = T.intercalate " + " . map prettyIngredient
-  where
-    prettyIngredient (n,e) = T.concat [ into @Text (show n), " ", e ^. entityNameFor n ]
+ where
+  prettyIngredient (n, e) =
+    T.concat [into @Text (show n), " ", e ^. entityNameFor n]
 
 -- | Build a map of recipes either by inputs or outputs.
 buildRecipeMap
   :: Getter (Recipe Entity) (IngredientList Entity)
-  -> [Recipe Entity] -> IntMap [Recipe Entity]
-buildRecipeMap select recipeList =
-  IM.fromListWith (++) (map (second (:[])) (concatMap mk recipeList))
-  where
-    mk r = [(e ^. entityHash, r) | (_, e) <- r ^. select]
+  -> [Recipe Entity]
+  -> IntMap [Recipe Entity]
+buildRecipeMap select recipeList = IM.fromListWith
+  (++)
+  (map (second (: [])) (concatMap mk recipeList))
+  where mk r = [ (e ^. entityHash, r) | (_, e) <- r ^. select ]
 
 -- | Build a map of recipes indexed by output ingredients.
 outRecipeMap :: [Recipe Entity] -> IntMap [Recipe Entity]
@@ -145,8 +153,8 @@ inRecipeMap = buildRecipeMap recipeInputs
 -- | Figure out which ingredients (if any) are lacking from an
 --   inventory to be able to carry out the recipe.
 missingIngredientsFor :: Inventory -> Recipe Entity -> [(Count, Entity)]
-missingIngredientsFor inv (Recipe ins _)
-  = filter ((>0) . fst) $ map (\(n,e) -> (n - E.lookup e inv, e)) ins
+missingIngredientsFor inv (Recipe ins _) =
+  filter ((> 0) . fst) $ map (\(n, e) -> (n - E.lookup e inv, e)) ins
 
 -- | Try to make a recipe, deleting the recipe's inputs from the
 --   inventory and adding the outputs. Return either a description of
@@ -154,6 +162,7 @@ missingIngredientsFor inv (Recipe ins _)
 --   sufficient inputs, or an updated inventory if it was successful.
 make :: Inventory -> Recipe Entity -> Either [(Count, Entity)] Inventory
 make inv r@(Recipe ins outs) = case missingIngredientsFor inv r of
-  []      -> Right $
-    foldl' (flip (uncurry insertCount)) (foldl' (flip (uncurry deleteCount)) inv ins) outs
+  [] -> Right $ foldl' (flip (uncurry insertCount))
+                       (foldl' (flip (uncurry deleteCount)) inv ins)
+                       outs
   missing -> Left missing

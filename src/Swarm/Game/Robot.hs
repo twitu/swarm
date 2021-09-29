@@ -15,38 +15,48 @@
 
 module Swarm.Game.Robot
   ( -- * Robots
-
     Robot
 
     -- ** Lenses
-  , robotEntity, robotName, robotDisplay, robotLocation, robotOrientation, robotInventory
-  , installedDevices, robotCapabilities
-  , robotCtx, robotEnv, machine, systemRobot, selfDestruct, tickSteps
+  , robotEntity
+  , robotName
+  , robotDisplay
+  , robotLocation
+  , robotOrientation
+  , robotInventory
+  , installedDevices
+  , robotCapabilities
+  , robotCtx
+  , robotEnv
+  , machine
+  , systemRobot
+  , selfDestruct
+  , tickSteps
 
     -- ** Create
-
-  , mkRobot, baseRobot
+  , mkRobot
+  , baseRobot
 
     -- ** Query
-
-  , isActive, getResult
+  , isActive
+  , getResult
   ) where
 
-import           Control.Lens              hiding (contains)
-import           Data.Int                  (Int64)
-import           Data.Maybe                (isNothing)
-import           Data.Set                  (Set)
-import           Data.Set.Lens             (setOf)
-import           Data.Text                 (Text)
+import           Control.Lens            hiding ( contains )
+import           Data.Int                       ( Int64 )
+import           Data.Maybe                     ( isNothing )
+import           Data.Set                       ( Set )
+import           Data.Set.Lens                  ( setOf )
+import           Data.Text                      ( Text )
 import           Linear
 
 import           Swarm.Game.CEK
 import           Swarm.Game.Display
-import           Swarm.Game.Entity         hiding (empty)
-import           Swarm.Game.Value          as V
+import           Swarm.Game.Entity       hiding ( empty )
+import           Swarm.Game.Value              as V
 import           Swarm.Language.Capability
 import           Swarm.Language.Context
-import           Swarm.Language.Types      (TCtx)
+import           Swarm.Language.Types           ( TCtx )
 
 -- | A value of type 'Robot' is a record representing the state of a
 --   single robot.
@@ -56,7 +66,6 @@ data Robot = Robot
   , _robotCapabilities :: Set Capability
     -- ^ A cached view of the capabilities this robot has.
     --   Automatically generated from '_installedDevices'.
-
   , _robotLocation     :: V2 Int64
   , _robotCtx          :: (TCtx, CapCtx)
   , _robotEnv          :: Env
@@ -65,7 +74,7 @@ data Robot = Robot
   , _selfDestruct      :: Bool
   , _tickSteps         :: Int
   }
-  deriving (Show)
+  deriving Show
 
 -- See https://byorgey.wordpress.com/2021/09/17/automatically-updated-cached-views-with-lens/
 -- for the approach used here with lenses.
@@ -119,16 +128,16 @@ robotInventory = robotEntity . entityInventory
 --   see whether the robot has a certain capability (see 'robotCapabilities')
 installedDevices :: Lens' Robot Inventory
 installedDevices = lens _installedDevices setInstalled
-  where
-    setInstalled r inst =
-      r { _installedDevices  = inst
-        , _robotCapabilities = inventoryCapabilities inst
-        }
+ where
+  setInstalled r inst = r { _installedDevices  = inst
+                          , _robotCapabilities = inventoryCapabilities inst
+                          }
 
 -- | Recompute the set of capabilities provided by the inventory of
 --   installed devices.
 inventoryCapabilities :: Inventory -> Set Capability
-inventoryCapabilities = setOf (to elems . traverse . _2 . entityCapabilities . traverse)
+inventoryCapabilities =
+  setOf (to elems . traverse . _2 . entityCapabilities . traverse)
 
 -- | Get the set of capabilities this robot possesses.  This is only a
 --   getter, not a lens, because it is automatically generated from
@@ -203,45 +212,39 @@ mkRobot
   -> [Entity] -- ^ Installed devices.
   -> Robot
 mkRobot name l d m devs = Robot
-  { _robotEntity  = mkEntity
-      defaultRobotDisplay
-      name
-      ["A generic robot."]
-      []
-      & entityOrientation ?~ d
-  , _installedDevices = inst
+  { _robotEntity = mkEntity defaultRobotDisplay name ["A generic robot."] []
+                   &  entityOrientation
+                   ?~ d
+  , _installedDevices  = inst
   , _robotCapabilities = inventoryCapabilities inst
-  , _robotLocation = l
-  , _robotCtx      = (empty, empty)
-  , _robotEnv      = empty
-  , _machine       = m
-  , _systemRobot   = False
-  , _selfDestruct  = False
-  , _tickSteps     = 0
+  , _robotLocation     = l
+  , _robotCtx          = (empty, empty)
+  , _robotEnv          = empty
+  , _machine           = m
+  , _systemRobot       = False
+  , _selfDestruct      = False
+  , _tickSteps         = 0
   }
-  where
-    inst = fromList devs
+  where inst = fromList devs
 
 -- | The initial robot representing your "base".
 baseRobot :: [Entity] -> Robot
 baseRobot devs = Robot
-  { _robotEntity = mkEntity
-      defaultRobotDisplay
-      "base"
-      ["Your base of operations."]
-      []
-  , _installedDevices = inst
+  { _robotEntity       = mkEntity defaultRobotDisplay
+                                  "base"
+                                  ["Your base of operations."]
+                                  []
+  , _installedDevices  = inst
   , _robotCapabilities = inventoryCapabilities inst
-  , _robotLocation = V2 0 0
-  , _robotCtx      = (empty, empty)
-  , _robotEnv      = empty
-  , _machine       = idleMachine
-  , _systemRobot   = False
-  , _selfDestruct  = False
-  , _tickSteps     = 0
+  , _robotLocation     = V2 0 0
+  , _robotCtx          = (empty, empty)
+  , _robotEnv          = empty
+  , _machine           = idleMachine
+  , _systemRobot       = False
+  , _selfDestruct      = False
+  , _tickSteps         = 0
   }
-  where
-    inst = fromList devs
+  where inst = fromList devs
 
 -- | Is the robot actively in the middle of a computation?
 isActive :: Robot -> Bool

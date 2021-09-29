@@ -18,26 +18,27 @@
 {-# LANGUAGE DeriveGeneric      #-}
 
 module Swarm.Language.Capability
-  ( Capability(..), CapCtx
+  ( Capability(..)
+  , CapCtx
   , requiredCaps
   , constCaps
   ) where
 
-import           Data.Char              (toLower)
-import           Data.Hashable          (Hashable)
-import           Data.Maybe             (fromMaybe)
-import           Data.Set               (Set)
-import qualified Data.Set               as S
-import           Data.Set.Lens          (setOf)
-import           Data.Text              (Text)
-import qualified Data.Text              as T
-import           Prelude                hiding (lookup)
-import           Text.Read              (readMaybe)
-import           Witch                  (from)
+import           Data.Char                      ( toLower )
+import           Data.Hashable                  ( Hashable )
+import           Data.Maybe                     ( fromMaybe )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as S
+import           Data.Set.Lens                  ( setOf )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
+import           Prelude                 hiding ( lookup )
+import           Text.Read                      ( readMaybe )
+import           Witch                          ( from )
 
-import           Data.Data              (Data)
+import           Data.Data                      ( Data )
 import           Data.Yaml
-import           GHC.Generics           (Generic)
+import           GHC.Generics                   ( Generic )
 
 import           Swarm.Language.Context
 import           Swarm.Language.Syntax
@@ -70,11 +71,11 @@ instance ToJSON Capability where
 
 instance FromJSON Capability where
   parseJSON = withText "Capability" tryRead
-    where
-      tryRead :: Text -> Parser Capability
-      tryRead t = case readMaybe . from . T.cons 'C' . T.toTitle $ t of
-        Just c  -> return c
-        Nothing -> fail $ "Unknown capability " ++ from t
+   where
+    tryRead :: Text -> Parser Capability
+    tryRead t = case readMaybe . from . T.cons 'C' . T.toTitle $ t of
+      Just c  -> return c
+      Nothing -> fail $ "Unknown capability " ++ from t
 
 -- | A capability context records the capabilities required by the
 --   definitions bound to variables.
@@ -104,8 +105,10 @@ requiredCaps ctx tm = case tm of
   -- we also return a map which associates the defined name to the
   -- capabilities it requires.
   TDef x _ t ->
-    let bodyCaps = (if x `S.member` setOf fv t then S.insert CRecursion else id) (requiredCaps' ctx t)
-    in (S.singleton CEnv, singleton x bodyCaps)
+    let bodyCaps =
+          (if x `S.member` setOf fv t then S.insert CRecursion else id)
+            (requiredCaps' ctx t)
+    in  (S.singleton CEnv, singleton x bodyCaps)
 
   TBind _ t1 t2 ->
 
@@ -141,63 +144,65 @@ requiredCaps ctx tm = case tm of
 --   all.
 requiredCaps' :: CapCtx -> Term -> Set Capability
 requiredCaps' ctx = go
-  where
-    go tm = case tm of
+ where
+  go tm = case tm of
 
-      -- Some primitive literals that don't require any special
-      -- capability.
-      TUnit          -> S.empty
-      TDir _         -> S.empty
-      TInt _         -> S.empty
-      TAntiInt _     -> S.empty
-      TString _      -> S.empty
-      TAntiString _  -> S.empty
-      TBool _        -> S.empty
+    -- Some primitive literals that don't require any special
+    -- capability.
+    TUnit         -> S.empty
+    TDir        _ -> S.empty
+    TInt        _ -> S.empty
+    TAntiInt    _ -> S.empty
+    TString     _ -> S.empty
+    TAntiString _ -> S.empty
+    TBool       _ -> S.empty
 
-      -- Look up the capabilities required by a function/command
-      -- constants using 'constCaps'.
-      TConst c       -> constCaps c
+    -- Look up the capabilities required by a function/command
+    -- constants using 'constCaps'.
+    TConst      c -> constCaps c
 
-      -- Note that a variable might not show up in the context, and
-      -- that's OK.  In particular, only variables bound by 'TDef' go
-      -- in the context; variables bound by a lambda or let will not
-      -- be there.
-      TVar x         -> fromMaybe S.empty (lookup x ctx)
+    -- Note that a variable might not show up in the context, and
+    -- that's OK.  In particular, only variables bound by 'TDef' go
+    -- in the context; variables bound by a lambda or let will not
+    -- be there.
+    TVar        x -> fromMaybe S.empty (lookup x ctx)
 
-      -- A lambda expression requires the 'CLambda' capability, and
-      -- also all the capabilities of the body.  We assume that the
-      -- lambda will eventually get applied, at which point it will
-      -- indeed require the body's capabilities (this is unnecessarily
-      -- conservative if the lambda is never applied, but such a
-      -- program could easily be rewritten without the unused
-      -- lambda). We also don't do anything with the argument: we
-      -- assume that it is used at least once within the body, and the
-      -- capabilities required by any argument will be picked up at
-      -- the application site.  Again, this is overly conservative in
-      -- the case that the argument is unused, but in that case the
-      -- unused argument could be removed.
-      TLam _ _ t     -> S.insert CLambda $ go t
+    -- A lambda expression requires the 'CLambda' capability, and
+    -- also all the capabilities of the body.  We assume that the
+    -- lambda will eventually get applied, at which point it will
+    -- indeed require the body's capabilities (this is unnecessarily
+    -- conservative if the lambda is never applied, but such a
+    -- program could easily be rewritten without the unused
+    -- lambda). We also don't do anything with the argument: we
+    -- assume that it is used at least once within the body, and the
+    -- capabilities required by any argument will be picked up at
+    -- the application site.  Again, this is overly conservative in
+    -- the case that the argument is unused, but in that case the
+    -- unused argument could be removed.
+    TLam _ _ t    -> S.insert CLambda $ go t
 
-      -- An application simply requires the union of the capabilities
-      -- from the left- and right-hand sides.  This assumes that the
-      -- argument will be used at least once by the function.
-      TApp t1 t2     -> go t1 `S.union` go t2
+    -- An application simply requires the union of the capabilities
+    -- from the left- and right-hand sides.  This assumes that the
+    -- argument will be used at least once by the function.
+    TApp t1 t2    -> go t1 `S.union` go t2
 
-      -- Similarly, for a let, we assume that the let-bound expression
-      -- will be used at least once in the body.
-      TLet x _ t1 t2 ->
-        (if x `S.member` setOf fv t1 then S.insert CRecursion else id)
-        $ S.insert CEnv $ go t1 `S.union` go t2
+    -- Similarly, for a let, we assume that the let-bound expression
+    -- will be used at least once in the body.
+    TLet x _ t1 t2 ->
+      (if x `S.member` setOf fv t1 then S.insert CRecursion else id)
+        $         S.insert CEnv
+        $         go t1
+        `S.union` go t2
 
-      -- Everything else is straightforward.
-      TPair t1 t2    -> go t1 `S.union` go t2
-      TBind _ t1 t2  -> go t1 `S.union` go t2
-      TDelay t       -> go t
+    -- Everything else is straightforward.
+    TPair t1 t2   -> go t1 `S.union` go t2
+    TBind _ t1 t2 -> go t1 `S.union` go t2
+    TDelay t      -> go t
 
-      -- This case should never happen if the term has been
-      -- typechecked; Def commands are only allowed at the top level,
-      -- so simply returning S.empty is safe.
-      TDef{}         -> S.empty
+    -- This case should never happen if the term has been
+    -- typechecked; Def commands are only allowed at the top level,
+    -- so simply returning S.empty is safe.
+    TDef{}        -> S.empty
 
 -- | Capabilities needed to evaluate or execute a constant.
 constCaps :: Const -> Set Capability

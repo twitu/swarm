@@ -15,16 +15,16 @@
 
 module Swarm.Game.Terrain
   ( -- * Terrain
-
     TerrainType(..)
   , displayTerrain
   , terrainMap
-
   ) where
 
-import           Brick              (Widget)
-import           Data.Map           (Map, (!))
-import qualified Data.Map           as M
+import           Brick                          ( Widget )
+import           Data.Map                       ( (!)
+                                                , Map
+                                                )
+import qualified Data.Map                      as M
 
 import           Swarm.Game.Display
 import           Swarm.TUI.Attr
@@ -47,8 +47,8 @@ displayTerrain t = displayWidget Nothing (terrainMap ! t)
 terrainMap :: Map TerrainType Display
 terrainMap = M.fromList
   [ (StoneT, defaultTerrainDisplay '░' rockAttr)
-  , (DirtT, defaultTerrainDisplay '░' dirtAttr)
+  , (DirtT , defaultTerrainDisplay '░' dirtAttr)
   , (GrassT, defaultTerrainDisplay '░' grassAttr)
   , (WaterT, defaultTerrainDisplay ' ' waterAttr)
-  , (IceT, defaultTerrainDisplay ' ' iceAttr)
+  , (IceT  , defaultTerrainDisplay ' ' iceAttr)
   ]

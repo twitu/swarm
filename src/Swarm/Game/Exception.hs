@@ -15,16 +15,15 @@
 module Swarm.Game.Exception
   ( Exn(..)
   , formatExn
-  )
-  where
+  ) where
 
-import           Data.Set                  (Set)
-import qualified Data.Set                  as S
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as S
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 
 import           Swarm.Language.Capability
-import           Swarm.Language.Pretty     (prettyText)
+import           Swarm.Language.Pretty          ( prettyText )
 import           Swarm.Language.Syntax
 import           Swarm.Util
 
@@ -55,12 +54,15 @@ formatExn (Fatal t) = T.unlines
   [ T.append "fatal error: " t
   , "Please report this as a bug at https://github.com/byorgey/swarm/issues/new ."
   ]
-formatExn (Incapable caps tm)   = T.unlines
+formatExn (Incapable caps tm) = T.unlines
   [ T.concat
-    [ "missing ", number (S.size caps) "capability", " "
-    , (commaList . map (squote . prettyText) .  S.toList) caps, " needed to execute:"
+    [ "missing "
+    , number (S.size caps) "capability"
+    , " "
+    , (commaList . map (squote . prettyText) . S.toList) caps
+    , " needed to execute:"
     ]
   , prettyText tm
   ]
 formatExn (CmdFailed c t) = T.concat [prettyText c, ": ", t]
-formatExn (User t)        = T.concat ["user exception: ", t]
+formatExn (User t       ) = T.concat ["user exception: ", t]

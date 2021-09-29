@@ -13,18 +13,18 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Swarm.Language.Pipeline.QQ
-  ( tmQ )
-  where
+  ( tmQ
+  ) where
 
 import           Data.Generics
-import qualified Language.Haskell.TH       as TH
+import qualified Language.Haskell.TH           as TH
 import           Language.Haskell.TH.Quote
-import           Witch                     (from)
+import           Witch                          ( from )
 
 import           Swarm.Language.Parse
 import           Swarm.Language.Pipeline
 import           Swarm.Language.Syntax
-import           Swarm.Util                (liftText)
+import           Swarm.Util                     ( liftText )
 
 -- | A quasiquoter for Swarm language terms, so we can conveniently
 --   write them down using concrete syntax and have them parsed into
@@ -35,24 +35,21 @@ import           Swarm.Util                (liftText)
 --   system robot programs (for example, see
 --   'Swarm.Game.Step.seedProgram').
 tmQ :: QuasiQuoter
-tmQ = QuasiQuoter
-  { quoteExp = quoteTermExp
-  , quotePat  = error "quotePat  not implemented for terms"
-  , quoteType = error "quoteType not implemented for terms"
-  , quoteDec  = error "quoteDec  not implemented for terms"
-  }
+tmQ = QuasiQuoter { quoteExp  = quoteTermExp
+                  , quotePat  = error "quotePat  not implemented for terms"
+                  , quoteType = error "quoteType not implemented for terms"
+                  , quoteDec  = error "quoteDec  not implemented for terms"
+                  }
 
 quoteTermExp :: String -> TH.ExpQ
 quoteTermExp s = do
   loc <- TH.location
   let pos =
-        (TH.loc_filename loc,
-         fst (TH.loc_start loc),
-         snd (TH.loc_start loc))
+        (TH.loc_filename loc, fst (TH.loc_start loc), snd (TH.loc_start loc))
   parsed <- runParserTH pos parseTerm s
   case processParsedTerm parsed of
-    Left errMsg -> fail $ from errMsg
-    Right ptm   -> dataToExpQ ((fmap liftText . cast) `extQ` antiTermExp) ptm
+    Left  errMsg -> fail $ from errMsg
+    Right ptm    -> dataToExpQ ((fmap liftText . cast) `extQ` antiTermExp) ptm
 
 antiTermExp :: Term -> Maybe TH.ExpQ
 antiTermExp (TAntiString v) =

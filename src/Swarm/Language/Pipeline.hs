@@ -26,10 +26,10 @@ module Swarm.Language.Pipeline
   , processParsedTerm'
   ) where
 
-import           Data.Bifunctor            (first)
-import           Data.Data                 (Data)
-import           Data.Set                  (Set)
-import           Data.Text                 (Text)
+import           Data.Bifunctor                 ( first )
+import           Data.Data                      ( Data )
+import           Data.Set                       ( Set )
+import           Data.Text                      ( Text )
 
 import           Swarm.Language.Capability
 import           Swarm.Language.Context
@@ -42,13 +42,12 @@ import           Swarm.Language.Types
 
 -- | A record containing the results of the language processing
 --   pipeline.  Put a 'Term' in, and get one of these out.
-data ProcessedTerm = ProcessedTerm
-  Term              -- ^ The elaborated term
-  TModule           -- ^ The type of the term (and of any embedded definitions)
-  (Set Capability)  -- ^ Capabilities required by the term
-  CapCtx            -- ^ Capability context for any definitions embedded in the term
+data ProcessedTerm = ProcessedTerm Term              -- ^ The elaborated term
+                                        TModule           -- ^ The type of the term (and of any embedded definitions)
+                                                (Set Capability)  -- ^ Capabilities required by the term
+                                                                 CapCtx            -- ^ Capability context for any definitions embedded in the term
 
-  deriving (Data)
+  deriving Data
 
 -- | Given a 'Text' value representing a Swarm program,
 --

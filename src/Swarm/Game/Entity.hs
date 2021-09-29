@@ -30,77 +30,99 @@
 module Swarm.Game.Entity
   ( -- * Properties
     EntityProperty(..)
-  , GrowthTime(..), defaultGrowthTime
+  , GrowthTime(..)
+  , defaultGrowthTime
 
     -- * Entities
-  , Entity, mkEntity
+  , Entity
+  , mkEntity
   , displayEntity
 
     -- ** Lenses
     -- $lenses
-  , entityDisplay, entityName, entityPlural, entityNameFor
-  , entityDescription, entityOrientation, entityGrowth
-  , entityProperties, hasProperty, entityCapabilities
+  , entityDisplay
+  , entityName
+  , entityPlural
+  , entityNameFor
+  , entityDescription
+  , entityOrientation
+  , entityGrowth
+  , entityProperties
+  , hasProperty
+  , entityCapabilities
   , entityInventory
   , entityHash
 
     -- ** Entity map
   , EntityMap
   , loadEntities
-  , lookupEntityName, deviceForCap
+  , lookupEntityName
+  , deviceForCap
 
     -- * Inventories
-
-  , Inventory, Count
+  , Inventory
+  , Count
 
     -- ** Construction
-
-  , empty, singleton, fromList
+  , empty
+  , singleton
+  , fromList
 
     -- ** Lookup
-
-  , lookup, lookupByName, contains, elems
+  , lookup
+  , lookupByName
+  , contains
+  , elems
 
     -- ** Modification
-  , insert, insertCount
-  , delete, deleteCount, deleteAll
+  , insert
+  , insertCount
+  , delete
+  , deleteCount
+  , deleteAll
+  ) where
 
-  )
-where
-
-import           Brick                     (Widget)
-import           Control.Arrow             ((&&&))
-import           Control.Lens              (Getter, Lens', lens, to, view, (^.))
+import           Brick                          ( Widget )
+import           Control.Arrow                  ( (&&&) )
+import           Control.Lens                   ( Getter
+                                                , Lens'
+                                                , (^.)
+                                                , lens
+                                                , to
+                                                , view
+                                                )
 import           Control.Monad.IO.Class
-import           Data.Bifunctor            (bimap, second)
-import           Data.Char                 (toLower)
-import           Data.Function             (on)
+import           Data.Bifunctor                 ( bimap
+                                                , second
+                                                )
+import           Data.Char                      ( toLower )
+import           Data.Function                  ( on )
 import           Data.Hashable
-import           Data.Int                  (Int64)
-import           Data.IntMap               (IntMap)
-import qualified Data.IntMap               as IM
-import           Data.IntSet               (IntSet)
-import qualified Data.IntSet               as IS
-import           Data.List                 (foldl')
-import           Data.Map                  (Map)
-import qualified Data.Map                  as M
-import           Data.Maybe                (isJust)
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
-import           GHC.Generics              (Generic)
+import           Data.Int                       ( Int64 )
+import           Data.IntMap                    ( IntMap )
+import qualified Data.IntMap                   as IM
+import           Data.IntSet                    ( IntSet )
+import qualified Data.IntSet                   as IS
+import           Data.List                      ( foldl' )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as M
+import           Data.Maybe                     ( isJust )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
+import           GHC.Generics                   ( Generic )
 import           Linear
-import           Prelude                   hiding (lookup)
-import           Text.Read                 (readMaybe)
+import           Prelude                 hiding ( lookup )
+import           Text.Read                      ( readMaybe )
 import           Witch
 
 import           Data.Yaml
 
 import           Swarm.Game.Display
 import           Swarm.Language.Capability
-import           Swarm.Language.Syntax     (toDirection)
+import           Swarm.Language.Syntax          ( toDirection )
 
 import           Paths_swarm
-import           Swarm.Util                (plural)
+import           Swarm.Util                     ( plural )
 
 ------------------------------------------------------------
 -- Properties
@@ -119,11 +141,11 @@ instance ToJSON EntityProperty where
 
 instance FromJSON EntityProperty where
   parseJSON = withText "EntityProperty" tryRead
-    where
-      tryRead :: Text -> Parser EntityProperty
-      tryRead t = case readMaybe . from . T.toTitle $ t of
-        Just c  -> return c
-        Nothing -> fail $ "Unknown entity property " ++ from t
+   where
+    tryRead :: Text -> Parser EntityProperty
+    tryRead t = case readMaybe . from . T.toTitle $ t of
+      Just c  -> return c
+      Nothing -> fail $ "Unknown entity property " ++ from t
 
 -- | How long an entity takes to regrow.  This represents the minimum
 --   and maximum amount of time taken by one growth stage (there are
@@ -224,16 +246,17 @@ data Entity = Entity
 -- | The @Hashable@ instance for @Entity@ ignores the cached hash
 --   value and simply combines the other fields.
 instance Hashable Entity where
-  hashWithSalt s (Entity _ disp nm pl descr orient grow props caps inv)
-    = s `hashWithSalt` disp
-        `hashWithSalt` nm
-        `hashWithSalt` pl
-        `hashWithSalt` descr
-        `hashWithSalt` orient
-        `hashWithSalt` grow
-        `hashWithSalt` props
-        `hashWithSalt` caps
-        `hashWithSalt` inv
+  hashWithSalt s (Entity _ disp nm pl descr orient grow props caps inv) =
+    s
+      `hashWithSalt` disp
+      `hashWithSalt` nm
+      `hashWithSalt` pl
+      `hashWithSalt` descr
+      `hashWithSalt` orient
+      `hashWithSalt` grow
+      `hashWithSalt` props
+      `hashWithSalt` caps
+      `hashWithSalt` inv
 
 -- | Entities are compared by hash for efficiency.
 instance Eq Entity where
@@ -256,8 +279,8 @@ mkEntity
   -> [Text]           -- ^ Entity description
   -> [EntityProperty] -- ^ Properties
   -> Entity
-mkEntity disp nm descr props
-  = rehashEntity $ Entity 0 disp nm Nothing descr Nothing Nothing props [] empty
+mkEntity disp nm descr props =
+  rehashEntity $ Entity 0 disp nm Nothing descr Nothing Nothing props [] empty
 
 ------------------------------------------------------------
 -- Entity map
@@ -286,7 +309,9 @@ deviceForCap cap = M.lookup cap . entitiesByCap
 buildEntityMap :: [Entity] -> EntityMap
 buildEntityMap es = EntityMap
   { entitiesByName = M.fromList . map (view entityName &&& id) $ es
-  , entitiesByCap  = M.fromList . concatMap (\e -> map (,e) (e ^. entityCapabilities)) $ es
+  , entitiesByCap  = M.fromList
+                     . concatMap (\e -> map (, e) (e ^. entityCapabilities))
+                     $ es
   }
 
 ------------------------------------------------------------
@@ -294,43 +319,56 @@ buildEntityMap es = EntityMap
 ------------------------------------------------------------
 
 instance FromJSON Entity where
-  parseJSON = withObject "Entity" $ \v -> rehashEntity <$>
-    (Entity
-    <$> pure 0
-    <*> v .: "display"
-    <*> v .: "name"
-    <*> v .:? "plural"
-    <*> (map reflow <$> (v .: "description"))
-    <*> v .:? "orientation"
-    <*> v .:? "growth"
-    <*> v .:? "properties"   .!= []
-    <*> v .:? "capabilities" .!= []
-    <*> pure empty
-    )
-    where
-      reflow = T.unwords . T.words
+  parseJSON = withObject "Entity" $ \v ->
+    rehashEntity
+      <$> (   Entity
+          <$> pure 0
+          <*> v
+          .:  "display"
+          <*> v
+          .:  "name"
+          <*> v
+          .:? "plural"
+          <*> (map reflow <$> (v .: "description"))
+          <*> v
+          .:? "orientation"
+          <*> v
+          .:? "growth"
+          <*> v
+          .:? "properties"
+          .!= []
+          <*> v
+          .:? "capabilities"
+          .!= []
+          <*> pure empty
+          )
+    where reflow = T.unwords . T.words
 
 instance ToJSON Entity where
-  toJSON e = object $
-    [ "display"      .= (e ^. entityDisplay)
-    , "name"         .= (e ^. entityName)
-    , "description"  .= (e ^. entityDescription)
-    ]
-    ++
-    [ "plural"       .= (e ^. entityPlural) | isJust (e ^. entityPlural) ]
-    ++
-    [ "orientation"  .= (e ^. entityOrientation) | isJust (e ^. entityOrientation) ]
-    ++
-    [ "properties"   .= (e ^. entityProperties) | not . null $ e ^. entityProperties ]
-    ++
-    [ "capabilities" .= (e ^. entityCapabilities) | not . null $ e ^. entityCapabilities ]
+  toJSON e =
+    object
+      $  [ "display" .= (e ^. entityDisplay)
+         , "name" .= (e ^. entityName)
+         , "description" .= (e ^. entityDescription)
+         ]
+      ++ [ "plural" .= (e ^. entityPlural) | isJust (e ^. entityPlural) ]
+      ++ [ "orientation" .= (e ^. entityOrientation)
+         | isJust (e ^. entityOrientation)
+         ]
+      ++ [ "properties" .= (e ^. entityProperties)
+         | not . null $ e ^. entityProperties
+         ]
+      ++ [ "capabilities" .= (e ^. entityCapabilities)
+         | not . null $ e ^. entityCapabilities
+         ]
 
 -- | Load entities from a data file called @entities.yaml@, producing
 --   either an 'EntityMap' or a pretty-printed parse error.
 loadEntities :: MonadIO m => m (Either Text EntityMap)
 loadEntities = liftIO $ do
   fileName <- getDataFileName "entities.yaml"
-  bimap (from . prettyPrintParseException) buildEntityMap <$> decodeFileEither fileName
+  bimap (from . prettyPrintParseException) buildEntityMap
+    <$> decodeFileEither fileName
 
 ------------------------------------------------------------
 -- Entity lenses
@@ -372,19 +410,20 @@ entityPlural = hashedLens _entityPlural (\e x -> e { _entityPlural = x })
 --   irregular, or by applying standard heuristics otherwise.
 entityNameFor :: Int -> Getter Entity Text
 entityNameFor 1 = entityName
-entityNameFor _ = to $ \e ->
-  case e ^. entityPlural of
-    Just pl -> pl
-    Nothing -> plural (e ^. entityName)
+entityNameFor _ = to $ \e -> case e ^. entityPlural of
+  Just pl -> pl
+  Nothing -> plural (e ^. entityName)
 
 -- | A longer, free-form description of the entity.  Each 'Text' value
 --   represents a paragraph.
 entityDescription :: Lens' Entity [Text]
-entityDescription = hashedLens _entityDescription (\e x -> e { _entityDescription = x })
+entityDescription =
+  hashedLens _entityDescription (\e x -> e { _entityDescription = x })
 
 -- | The direction this entity is facing (if it has one).
 entityOrientation :: Lens' Entity (Maybe (V2 Int64))
-entityOrientation = hashedLens _entityOrientation (\e x -> e { _entityOrientation = x })
+entityOrientation =
+  hashedLens _entityOrientation (\e x -> e { _entityOrientation = x })
 
 -- | How long this entity takes to grow, if it regrows.
 entityGrowth :: Lens' Entity (Maybe GrowthTime)
@@ -392,7 +431,8 @@ entityGrowth = hashedLens _entityGrowth (\e x -> e { _entityGrowth = x })
 
 -- | The properties enjoyed by this entity.
 entityProperties :: Lens' Entity [EntityProperty]
-entityProperties = hashedLens _entityProperties (\e x -> e { _entityProperties = x })
+entityProperties =
+  hashedLens _entityProperties (\e x -> e { _entityProperties = x })
 
 -- | Test whether an entity has a certain property.
 hasProperty :: Entity -> EntityProperty -> Bool
@@ -400,15 +440,18 @@ hasProperty e p = p `elem` (e ^. entityProperties)
 
 -- | The capabilities this entity provides when installed.
 entityCapabilities :: Lens' Entity [Capability]
-entityCapabilities = hashedLens _entityCapabilities (\e x -> e { _entityCapabilities = x })
+entityCapabilities =
+  hashedLens _entityCapabilities (\e x -> e { _entityCapabilities = x })
 
 -- | The inventory of other entities carried by this entity.
 entityInventory :: Lens' Entity Inventory
-entityInventory = hashedLens _entityInventory (\e x -> e { _entityInventory = x })
+entityInventory =
+  hashedLens _entityInventory (\e x -> e { _entityInventory = x })
 
 -- | Display an entity as a single character.
 displayEntity :: Entity -> Widget n
-displayEntity e = displayWidget ((e ^. entityOrientation) >>= toDirection) (e ^. entityDisplay)
+displayEntity e =
+  displayWidget ((e ^. entityOrientation) >>= toDirection) (e ^. entityDisplay)
 
 ------------------------------------------------------------
 -- Inventory
@@ -442,8 +485,8 @@ lookup e (Inventory cs _) = maybe 0 fst $ IM.lookup (e ^. entityHash) cs
 -- | Look up an entity by name in an inventory, returning a list of
 --   matching entities.
 lookupByName :: Text -> Inventory -> [Entity]
-lookupByName name (Inventory cs byN)
-  = maybe [] (map (snd . (cs IM.!)) . IS.elems) (M.lookup (T.toLower name) byN)
+lookupByName name (Inventory cs byN) =
+  maybe [] (map (snd . (cs IM.!)) . IS.elems) (M.lookup (T.toLower name) byN)
 
 -- | The empty inventory.
 empty :: Inventory
@@ -466,10 +509,13 @@ fromList = foldl' (flip insert) empty
 --   If the inventory already contains this entity, then only its
 --   count will be incremented.
 insertCount :: Count -> Entity -> Inventory -> Inventory
-insertCount cnt e (Inventory cs byN)
-  = Inventory
-      (IM.insertWith (\(m,_) (n,_) -> (m+n,e)) (e ^. entityHash) (cnt,e) cs)
-      (M.insertWith IS.union (T.toLower $ e ^. entityName) (IS.singleton (e ^. entityHash)) byN)
+insertCount cnt e (Inventory cs byN) = Inventory
+  (IM.insertWith (\(m, _) (n, _) -> (m + n, e)) (e ^. entityHash) (cnt, e) cs)
+  (M.insertWith IS.union
+                (T.toLower $ e ^. entityName)
+                (IS.singleton (e ^. entityHash))
+                byN
+  )
 
 -- | Check whether an inventory contains a given entity.
 contains :: Inventory -> Entity -> Bool
@@ -482,26 +528,26 @@ delete = deleteCount 1
 -- | Delete a specified number of copies of an entity from an inventory.
 deleteCount :: Count -> Entity -> Inventory -> Inventory
 deleteCount k e (Inventory cs byN) = Inventory cs' byN'
-  where
-    cs' = IM.alter removeCount (e ^. entityHash) cs
-    newCount = lookup e (Inventory cs' byN)
+ where
+  cs'      = IM.alter removeCount (e ^. entityHash) cs
+  newCount = lookup e (Inventory cs' byN)
 
-    byN'
-      | newCount == 0 = M.adjust (IS.delete (e ^. entityHash)) (e ^. entityName) byN
-      | otherwise     = byN
+  byN'
+    | newCount == 0 = M.adjust (IS.delete (e ^. entityHash))
+                               (e ^. entityName)
+                               byN
+    | otherwise = byN
 
-    removeCount :: Maybe (Count, a) -> Maybe (Count, a)
-    removeCount Nothing       = Nothing
-    removeCount (Just (n, a))
-      | k >= n    = Nothing
-      | otherwise = Just (n-k, a)
+  removeCount :: Maybe (Count, a) -> Maybe (Count, a)
+  removeCount Nothing = Nothing
+  removeCount (Just (n, a)) | k >= n    = Nothing
+                            | otherwise = Just (n - k, a)
 
 -- | Delete all copies of a certain entity from an inventory.
 deleteAll :: Entity -> Inventory -> Inventory
-deleteAll e (Inventory cs byN)
-  = Inventory
-      (IM.alter (const Nothing) (e ^. entityHash) cs)
-      (M.adjust (IS.delete (e ^. entityHash)) (e ^. entityName) byN)
+deleteAll e (Inventory cs byN) = Inventory
+  (IM.alter (const Nothing) (e ^. entityHash) cs)
+  (M.adjust (IS.delete (e ^. entityHash)) (e ^. entityName) byN)
 
 -- | Get the entities in an inventory and their associated counts.
 elems :: Inventory -> [(Count, Entity)]

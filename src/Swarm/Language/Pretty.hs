@@ -20,15 +20,17 @@
 
 module Swarm.Language.Pretty where
 
-import           Control.Lens.Combinators    (pattern Empty)
-import           Data.Bool                   (bool)
-import           Data.Functor.Fixedpoint     (Fix, unFix)
-import           Data.String                 (fromString)
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
+import           Control.Lens.Combinators       ( pattern Empty )
+import           Data.Bool                      ( bool )
+import           Data.Functor.Fixedpoint        ( Fix
+                                                , unFix
+                                                )
+import           Data.String                    ( fromString )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 import           Prettyprinter
-import qualified Prettyprinter.Render.String as RS
-import qualified Prettyprinter.Render.Text   as RT
+import qualified Prettyprinter.Render.String   as RS
+import qualified Prettyprinter.Render.Text     as RT
 import           Witch
 
 import           Control.Unification
@@ -79,16 +81,16 @@ instance PrettyPrec (t (Fix t)) => PrettyPrec (Fix t) where
 
 instance (PrettyPrec (t (UTerm t v)), PrettyPrec v) => PrettyPrec (UTerm t v) where
   prettyPrec p (UTerm t) = prettyPrec p t
-  prettyPrec p (UVar v)  = prettyPrec p v
+  prettyPrec p (UVar  v) = prettyPrec p v
 
 instance PrettyPrec t => PrettyPrec (TypeF t) where
-  prettyPrec _ (TyBaseF b)     = ppr b
-  prettyPrec _ (TyVarF v)      = pretty v
-  prettyPrec p (TyProdF ty1 ty2)  = pparens (p > 2) $
-    prettyPrec 3 ty1 <+> "*" <+> prettyPrec 2 ty2
+  prettyPrec _ (TyBaseF b) = ppr b
+  prettyPrec _ (TyVarF  v) = pretty v
+  prettyPrec p (TyProdF ty1 ty2) =
+    pparens (p > 2) $ prettyPrec 3 ty1 <+> "*" <+> prettyPrec 2 ty2
   prettyPrec p (TyCmdF ty) = pparens (p > 9) $ "cmd" <+> prettyPrec 10 ty
-  prettyPrec p (TyFunF ty1 ty2)    = pparens (p > 0) $
-    prettyPrec 1 ty1 <+> "->" <+> prettyPrec 0 ty2
+  prettyPrec p (TyFunF ty1 ty2) =
+    pparens (p > 0) $ prettyPrec 1 ty1 <+> "->" <+> prettyPrec 0 ty2
 
 instance PrettyPrec Polytype where
   prettyPrec _ (Forall [] t) = ppr t
@@ -96,9 +98,9 @@ instance PrettyPrec Polytype where
 
 instance PrettyPrec t => PrettyPrec (Ctx t) where
   prettyPrec _ Empty          = emptyDoc
-  prettyPrec _ (assocs -> bs) = brackets (hsep (punctuate "," (map prettyBinding bs)))
-    where
-      prettyBinding (x,ty) = pretty x <> ":" <+> ppr ty
+  prettyPrec _ (assocs -> bs) = brackets
+    (hsep (punctuate "," (map prettyBinding bs)))
+    where prettyBinding (x, ty) = pretty x <> ":" <+> ppr ty
 
 instance PrettyPrec Direction where
   prettyPrec _ Lft   = "left"
@@ -115,7 +117,7 @@ instance PrettyPrec Capability where
 
 instance PrettyPrec Const where
   prettyPrec _ Noop      = "{}"
-  prettyPrec p (Cmp c)   = prettyPrec p c
+  prettyPrec p (Cmp   c) = prettyPrec p c
   prettyPrec p (Arith c) = prettyPrec p c
   prettyPrec _ Neg       = "-"
   prettyPrec _ c         = pretty $ T.toLower (from (show c))
@@ -136,42 +138,46 @@ instance PrettyPrec ArithConst where
   prettyPrec _ Exp = "^"
 
 instance PrettyPrec Term where
-  prettyPrec _ TUnit         = "()"
-  prettyPrec _ (TConst c)    = ppr c
-  prettyPrec _ (TDir d)      = ppr d
-  prettyPrec _ (TInt n)      = pretty n
-  prettyPrec _ (TAntiInt v)  = "$int:" <> pretty v
-  prettyPrec _ (TString s)   = fromString (show s)
+  prettyPrec _ TUnit           = "()"
+  prettyPrec _ (TConst      c) = ppr c
+  prettyPrec _ (TDir        d) = ppr d
+  prettyPrec _ (TInt        n) = pretty n
+  prettyPrec _ (TAntiInt    v) = "$int:" <> pretty v
+  prettyPrec _ (TString     s) = fromString (show s)
   prettyPrec _ (TAntiString v) = "$str:" <> pretty v
-  prettyPrec _ (TBool b)     = bool "false" "true" b
-  prettyPrec _ (TVar s)      = pretty s
-  prettyPrec p (TDelay t)    = pparens (p > 10) $ "delay" <+> prettyPrec 11 t
-  prettyPrec _ (TPair t1 t2) = pparens True $ ppr t1 <> "," <+> ppr t2
+  prettyPrec _ (TBool       b) = bool "false" "true" b
+  prettyPrec _ (TVar        s) = pretty s
+  prettyPrec p (TDelay      t) = pparens (p > 10) $ "delay" <+> prettyPrec 11 t
+  prettyPrec _ (TPair t1 t2  ) = pparens True $ ppr t1 <> "," <+> ppr t2
   prettyPrec _ (TLam x mty body) =
     "\\" <> pretty x <> maybe "" ((":" <>) . ppr) mty <> "." <+> ppr body
-  prettyPrec p (TApp t1 t2)  = pparens (p > 10) $
-    prettyPrec 10 t1 <+> prettyPrec 11 t2
+  prettyPrec p (TApp t1 t2) =
+    pparens (p > 10) $ prettyPrec 10 t1 <+> prettyPrec 11 t2
   prettyPrec _ (TLet x mty t1 t2) =
-    hsep $
-      ["let", pretty x] ++
-      maybe [] (\ty -> [":", ppr ty]) mty ++
-      ["=", ppr t1, "in", ppr t2]
+    hsep
+      $  ["let", pretty x]
+      ++ maybe [] (\ty -> [":", ppr ty]) mty
+      ++ ["=", ppr t1, "in", ppr t2]
   prettyPrec _ (TDef x mty t1) =
-    hsep $
-      ["def", pretty x] ++
-      maybe [] (\ty -> [":", ppr ty]) mty ++
-      ["=", ppr t1, "end"]
-  prettyPrec p (TBind Nothing t1 t2) = pparens (p > 0) $
-    prettyPrec 1 t1 <> ";" <+> prettyPrec 0 t2
-  prettyPrec p (TBind (Just x) t1 t2) = pparens (p > 0) $
-    pretty x <+> "<-" <+> prettyPrec 1 t1  <> ";" <+> prettyPrec 0 t2
+    hsep
+      $  ["def", pretty x]
+      ++ maybe [] (\ty -> [":", ppr ty]) mty
+      ++ ["=", ppr t1, "end"]
+  prettyPrec p (TBind Nothing t1 t2) =
+    pparens (p > 0) $ prettyPrec 1 t1 <> ";" <+> prettyPrec 0 t2
+  prettyPrec p (TBind (Just x) t1 t2) =
+    pparens (p > 0)
+      $   pretty x
+      <+> "<-"
+      <+> prettyPrec 1 t1
+      <>  ";"
+      <+> prettyPrec 0 t2
 
 instance PrettyPrec TypeErr where
   prettyPrec _ (Mismatch ty1 ty2) =
     "Can't unify" <+> ppr ty1 <+> "and" <+> ppr ty2
 
-  prettyPrec _ (UnboundVar x) =
-    "Unbound variable" <+> pretty x
+  prettyPrec _ (UnboundVar x) = "Unbound variable" <+> pretty x
 
   prettyPrec _ (Infinite x uty) =
     "Infinite type:" <+> ppr x <+> "=" <+> ppr uty

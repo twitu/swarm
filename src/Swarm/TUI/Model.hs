@@ -19,24 +19,38 @@
 module Swarm.TUI.Model
   ( -- * Custom UI label types
     -- $uilabel
-
-    AppEvent(..), Name(..), Modal(..)
+    AppEvent(..)
+  , Name(..)
+  , Modal(..)
 
     -- * UI state
-
   , REPLHistItem(..)
-  , InventoryEntry(..), _Separator, _InventoryEntry
+  , InventoryEntry(..)
+  , _Separator
+  , _InventoryEntry
   , UIState
 
     -- ** Fields
-
-  , uiFocusRing, uiReplForm, uiReplType, uiReplHistory, uiReplHistIdx, uiReplLast
-  , uiInventory, uiError, uiModal, lgTicksPerSecond
-  , lastFrameTime, accumulatedTime, tickCount, frameCount, lastInfoTime
-  , uiShowFPS, uiTPF, uiFPS
+  , uiFocusRing
+  , uiReplForm
+  , uiReplType
+  , uiReplHistory
+  , uiReplHistIdx
+  , uiReplLast
+  , uiInventory
+  , uiError
+  , uiModal
+  , lgTicksPerSecond
+  , lastFrameTime
+  , accumulatedTime
+  , tickCount
+  , frameCount
+  , lastInfoTime
+  , uiShowFPS
+  , uiTPF
+  , uiFPS
 
     -- ** Initialization
-
   , initFocusRing
   , replPrompt
   , initReplForm
@@ -44,32 +58,33 @@ module Swarm.TUI.Model
   , initUIState
 
     -- ** Updating
-
   , populateInventoryList
 
     -- * App state
   , AppState
     -- ** Fields
-  , gameState, uiState
+  , gameState
+  , uiState
     -- ** Initialization
   , initAppState
-
   ) where
 
 import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.State
-import           Data.List            (findIndex, sortOn)
-import           Data.Maybe           (fromMaybe)
-import           Data.Text            (Text)
-import qualified Data.Vector          as V
+import           Data.List                      ( findIndex
+                                                , sortOn
+                                                )
+import           Data.Maybe                     ( fromMaybe )
+import           Data.Text                      ( Text )
+import qualified Data.Vector                   as V
 import           System.Clock
-import           Text.Read            (readMaybe)
+import           Text.Read                      ( readMaybe )
 
 import           Brick
 import           Brick.Focus
 import           Brick.Forms
-import qualified Brick.Widgets.List   as BL
+import qualified Brick.Widgets.List            as BL
 
 import           Swarm.Game.Entity
 import           Swarm.Game.Robot
@@ -89,7 +104,7 @@ import           Swarm.Util
 --   very important: a separate thread sends 'Frame' events as fast as
 --   it can, telling the TUI to render a new frame.
 data AppEvent = Frame
-  deriving (Show)
+  deriving Show
 
 -- | 'Name' represents names to uniquely identify various components
 --   of the UI, such as forms, panels, caches, extents, and lists.
@@ -104,8 +119,7 @@ data Name
                    --   focused robot.
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
-data Modal
-  = HelpModal
+data Modal = HelpModal
   deriving (Eq, Show)
 
 ------------------------------------------------------------
@@ -238,9 +252,8 @@ replPrompt = "> "
 
 -- | The initial state of the REPL entry form.
 initReplForm :: Form Text AppEvent Name
-initReplForm = newForm
-  [(txt replPrompt <+>) @@= editTextField id REPLInput (Just 1)]
-  ""
+initReplForm =
+  newForm [(txt replPrompt <+>) @@= editTextField id REPLInput (Just 1)] ""
 
 -- | The initial tick speed.
 initLgTicksPerSecond :: Int
@@ -251,28 +264,27 @@ initLgTicksPerSecond = 3  -- 2^3 = 8 ticks / second
 --   time.
 initUIState :: ExceptT Text IO UIState
 initUIState = liftIO $ do
-  mhist <- (>>= readMaybe @[REPLHistItem]) <$> readFileMay ".swarm_history"
+  mhist     <- (>>= readMaybe @[REPLHistItem]) <$> readFileMay ".swarm_history"
   startTime <- getTime Monotonic
-  return $ UIState
-    { _uiFocusRing      = initFocusRing
-    , _uiReplForm       = initReplForm
-    , _uiReplType       = Nothing
-    , _uiReplHistory    = mhist ? []
-    , _uiReplHistIdx    = -1
-    , _uiReplLast       = ""
-    , _uiInventory      = Nothing
-    , _uiError          = Nothing
-    , _uiModal          = Nothing
-    , _uiShowFPS        = False
-    , _uiTPF            = 0
-    , _uiFPS            = 0
-    , _lgTicksPerSecond = initLgTicksPerSecond
-    , _lastFrameTime    = startTime
-    , _accumulatedTime  = 0
-    , _lastInfoTime     = 0
-    , _tickCount        = 0
-    , _frameCount       = 0
-    }
+  return $ UIState { _uiFocusRing      = initFocusRing
+                   , _uiReplForm       = initReplForm
+                   , _uiReplType       = Nothing
+                   , _uiReplHistory    = mhist ? []
+                   , _uiReplHistIdx    = -1
+                   , _uiReplLast       = ""
+                   , _uiInventory      = Nothing
+                   , _uiError          = Nothing
+                   , _uiModal          = Nothing
+                   , _uiShowFPS        = False
+                   , _uiTPF            = 0
+                   , _uiFPS            = 0
+                   , _lgTicksPerSecond = initLgTicksPerSecond
+                   , _lastFrameTime    = startTime
+                   , _accumulatedTime  = 0
+                   , _lastInfoTime     = 0
+                   , _tickCount        = 0
+                   , _frameCount       = 0
+                   }
 
 ------------------------------------------------------------
 -- Functions for updating the UI state
@@ -284,25 +296,30 @@ populateInventoryList :: MonadState UIState m => Maybe Robot -> m ()
 populateInventoryList Nothing  = uiInventory .= Nothing
 populateInventoryList (Just r) = do
   mList <- preuse (uiInventory . _Just . _2)
-  let mkInvEntry (n,e) = InventoryEntry n e
-      itemList label
-        = (\case { [] -> []; xs -> Separator label : xs })
-        . map mkInvEntry
-        . sortOn (view entityName . snd)
-        . elems
-      items = (r ^. robotInventory . to (itemList "Inventory"))
-           ++ (r ^. installedDevices . to (itemList "Installed devices"))
+  let mkInvEntry (n, e) = InventoryEntry n e
+      itemList label =
+        (\case
+            [] -> []
+            xs -> Separator label : xs
+          )
+          . map mkInvEntry
+          . sortOn (view entityName . snd)
+          . elems
+      items =
+        (r ^. robotInventory . to (itemList "Inventory"))
+          ++ (r ^. installedDevices . to (itemList "Installed devices"))
 
       -- Attempt to keep the selected element steady.
       sel = mList >>= BL.listSelectedElement  -- Get the currently selected element+index.
       idx = case sel of
         -- If there is no currently selected element, just focus on
         -- index 1 (not 0, to avoid the separator).
-        Nothing -> 1
+        Nothing                           -> 1
         -- Otherwise, try to find the same entity in the list and focus on that;
         -- if it's not there, keep the index the same.
-        Just (selIdx, InventoryEntry _ e) ->
-          fromMaybe selIdx (findIndex ((== Just e) . preview (_InventoryEntry . _2)) items)
+        Just (selIdx, InventoryEntry _ e) -> fromMaybe
+          selIdx
+          (findIndex ((== Just e) . preview (_InventoryEntry . _2)) items)
         Just (selIdx, _) -> selIdx
 
       -- Create the new list, focused at the desired index.

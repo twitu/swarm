@@ -21,34 +21,46 @@
 
 module Swarm.Language.Syntax
   ( -- * Directions
-
-    Direction(..), applyTurn, toDirection, fromDirection, north, south, east, west
+    Direction(..)
+  , applyTurn
+  , toDirection
+  , fromDirection
+  , north
+  , south
+  , east
+  , west
 
     -- * Constants
-  , Const(..), CmpConst(..), ArithConst(..)
-
-  , arity, isCmd
+  , Const(..)
+  , CmpConst(..)
+  , ArithConst(..)
+  , arity
+  , isCmd
 
     -- * Terms
-  , Var, Term(..)
+  , Var
+  , Term(..)
 
     -- * Term traversal
-
-  , fvT, fv, mapFree1
-
+  , fvT
+  , fv
+  , mapFree1
   ) where
 
-import           Control.Lens         (Plated (..), Traversal', (%~))
-import           Data.Data.Lens       (uniplate)
-import           Data.Int             (Int64)
-import qualified Data.Set             as S
+import           Control.Lens                   ( (%~)
+                                                , Plated(..)
+                                                , Traversal'
+                                                )
+import           Data.Data.Lens                 ( uniplate )
+import           Data.Int                       ( Int64 )
+import qualified Data.Set                      as S
 import           Data.Text
 import           Linear
 
 import           Data.Aeson.Types
-import           Data.Data            (Data)
-import           Data.Hashable        (Hashable)
-import           GHC.Generics         (Generic)
+import           Data.Data                      ( Data )
+import           Data.Hashable                  ( Hashable )
+import           GHC.Generics                   ( Generic )
 
 import           Swarm.Language.Types
 
@@ -71,25 +83,25 @@ instance FromJSONKey Direction where
 --   turning relative to the given vector or by turning to an absolute
 --   direction vector.
 applyTurn :: Direction -> V2 Int64 -> V2 Int64
-applyTurn Lft (V2 x y)  = V2 (-y) x
-applyTurn Rgt (V2 x y)  = V2 y (-x)
-applyTurn Back (V2 x y) = V2 (-x) (-y)
-applyTurn Fwd v         = v
-applyTurn North _       = north
-applyTurn South _       = south
-applyTurn East _        = east
-applyTurn West _        = west
+applyTurn Lft   (V2 x y) = V2 (-y) x
+applyTurn Rgt   (V2 x y) = V2 y (-x)
+applyTurn Back  (V2 x y) = V2 (-x) (-y)
+applyTurn Fwd   v        = v
+applyTurn North _        = north
+applyTurn South _        = south
+applyTurn East  _        = east
+applyTurn West  _        = west
 
 -- | Possibly convert a vector into a 'Direction'---that is, if the
 --   vector happens to be a unit vector in one of the cardinal
 --   directions.
 toDirection :: V2 Int64 -> Maybe Direction
-toDirection v    = case v of
-  V2 0 1    -> Just North
-  V2 0 (-1) -> Just South
-  V2 1 0    -> Just East
-  V2 (-1) 0 -> Just West
-  _         -> Nothing
+toDirection v = case v of
+  V2 0    1    -> Just North
+  V2 0    (-1) -> Just South
+  V2 1    0    -> Just East
+  V2 (-1) 0    -> Just West
+  _            -> Nothing
 
 -- | Convert a 'Direction' into a corresponding vector.  Note that
 --   this only does something reasonable for 'North', 'South', 'East',
@@ -112,11 +124,11 @@ south = V2 0 (-1)
 
 -- | The cardinal direction east = @V2 1 0@.
 east :: V2 Int64
-east  = V2 1 0
+east = V2 1 0
 
 -- | The cardinal direction west = @V2 (-1) 0@.
 west :: V2 Int64
-west  = V2 (-1) 0
+west = V2 (-1) 0
 
 -- | Constants, representing various built-in functions and commands.
 data Const
@@ -224,11 +236,9 @@ arity Raise        = 1
 --   functions; fully saturated applications of such constants should
 --   be evaluated immediately.
 isCmd :: Const -> Bool
-isCmd (Cmp _)   = False
+isCmd (Cmp _) = False
 isCmd (Arith _) = False
-isCmd c = c `notElem` funList
-  where
-    funList = [If, Force, Not, Neg, Fst, Snd]
+isCmd c = c `notElem` funList where funList = [If, Force, Not, Neg, Fst, Snd]
 
 ------------------------------------------------------------
 -- Terms
@@ -301,35 +311,39 @@ instance Plated Term where
 --   variables.
 fvT :: Traversal' Term Term
 fvT f = go S.empty
-  where
-    go bound t = case t of
-      TUnit -> pure t
-      TConst{} -> pure t
-      TDir{} -> pure t
-      TInt{} -> pure t
-      TAntiInt{} -> pure t
-      TString{} -> pure t
-      TAntiString{} -> pure t
-      TBool{} -> pure t
-      TVar x
-        | x `S.member` bound -> pure t
-        | otherwise          -> f (TVar x)
-      TLam x ty t1 -> TLam x ty <$> go (S.insert x bound) t1
-      TApp t1 t2  -> TApp <$> go bound t1 <*> go bound t2
-      TLet x ty t1 t2 ->
-        let bound' = S.insert x bound
-        in  TLet x ty <$> go bound' t1 <*> go bound' t2
-      TPair t1 t2 -> TPair <$> go bound t1 <*> go bound t2
-      TDef x ty t1 -> TDef x ty <$> go (S.insert x bound) t1
-      TBind mx t1 t2 ->
-        TBind mx <$> go bound t1 <*> go (maybe id S.insert mx bound) t2
-      TDelay t1 -> TDelay <$> go bound t1
+ where
+  go bound t = case t of
+    TUnit         -> pure t
+    TConst{}      -> pure t
+    TDir{}        -> pure t
+    TInt{}        -> pure t
+    TAntiInt{}    -> pure t
+    TString{}     -> pure t
+    TAntiString{} -> pure t
+    TBool{}       -> pure t
+    TVar x | x `S.member` bound -> pure t
+           | otherwise          -> f (TVar x)
+    TLam x ty t1 -> TLam x ty <$> go (S.insert x bound) t1
+    TApp t1 t2   -> TApp <$> go bound t1 <*> go bound t2
+    TLet x ty t1 t2 ->
+      let bound' = S.insert x bound
+      in  TLet x ty <$> go bound' t1 <*> go bound' t2
+    TPair t1 t2  -> TPair <$> go bound t1 <*> go bound t2
+    TDef x ty t1 -> TDef x ty <$> go (S.insert x bound) t1
+    TBind mx t1 t2 ->
+      TBind mx <$> go bound t1 <*> go (maybe id S.insert mx bound) t2
+    TDelay t1 -> TDelay <$> go bound t1
 
 -- | Traversal over the free variables of a term.  Note that if you
 --   want to get the set of all free variables, you can do so via
 --   @'Data.Set.Lens.setOf' 'fv'@.
 fv :: Traversal' Term Var
-fv = fvT . (\f -> \case { TVar x -> TVar <$> f x ; t -> pure t })
+fv =
+  fvT
+    . (\f -> \case
+        TVar x -> TVar <$> f x
+        t      -> pure t
+      )
 
 -- | Apply a function to all free occurrences of a particular variable.
 mapFree1 :: Var -> (Term -> Term) -> Term -> Term

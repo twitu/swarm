@@ -29,51 +29,68 @@
 
 module Swarm.Language.Types
   ( -- * Basic definitions
-    BaseTy(..), Var
+    BaseTy(..)
+  , Var
   , TypeF(..)
 
     -- * @Type@
   , Type
-
-  , pattern TyBase, pattern TyVar
-  , pattern TyUnit, pattern TyInt, pattern TyString, pattern TyDir, pattern TyBool
-  , pattern (:*:), pattern (:->:)
+  , pattern TyBase
+  , pattern TyVar
+  , pattern TyUnit
+  , pattern TyInt
+  , pattern TyString
+  , pattern TyDir
+  , pattern TyBool
+  , pattern (:*:)
+  , pattern (:->:)
   , pattern TyCmd
 
     -- * @UType@
   , UType
-  , pattern UTyBase, pattern UTyVar
-  , pattern UTyUnit, pattern UTyInt, pattern UTyString, pattern UTyDir, pattern UTyBool
-  , pattern UTyProd, pattern UTyFun
+  , pattern UTyBase
+  , pattern UTyVar
+  , pattern UTyUnit
+  , pattern UTyInt
+  , pattern UTyString
+  , pattern UTyDir
+  , pattern UTyBool
+  , pattern UTyProd
+  , pattern UTyFun
   , pattern UTyCmd
 
     -- ** Utilities
-
-  , ucata, mkVarName
+  , ucata
+  , mkVarName
 
     -- * Polytypes
-  , Poly(..), Polytype, UPolytype
+  , Poly(..)
+  , Polytype
+  , UPolytype
 
     -- * Contexts
-  , TCtx, UCtx
+  , TCtx
+  , UCtx
 
     -- * Modules
-  , Module(..), TModule, UModule, trivMod
+  , Module(..)
+  , TModule
+  , UModule
+  , trivMod
 
     -- * The 'WithU' class
   , WithU(..)
-
   ) where
 
 import           Control.Unification
 import           Control.Unification.IntVar
-import           Data.Data                  (Data)
+import           Data.Data                      ( Data )
 import           Data.Functor.Fixedpoint
-import           Data.Maybe                 (fromJust)
-import           Data.String                (IsString (..))
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           GHC.Generics               (Generic1)
+import           Data.Maybe                     ( fromJust )
+import           Data.String                    ( IsString(..) )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
+import           GHC.Generics                   ( Generic1 )
 import           Witch
 
 import           Swarm.Language.Context
@@ -132,14 +149,15 @@ deriving instance Data IntVar
 --   @unification-fd@ package, but since it doesn't provide one, we
 --   define it here.
 ucata :: Functor t => (v -> a) -> (t a -> a) -> UTerm t v -> a
-ucata f _ (UVar v)  = f v
+ucata f _ (UVar  v) = f v
 ucata f g (UTerm t) = g (fmap (ucata f g) t)
 
 -- | A quick-and-dirty method for turning an 'IntVar' (used internally
 --   as a unification variable) into a unique variable name, by
 --   appending a number to the given name.
 mkVarName :: Text -> IntVar -> Var
-mkVarName nm (IntVar v) = T.append nm (from @String (show (v + (maxBound :: Int) + 1)))
+mkVarName nm (IntVar v) =
+  T.append nm (from @String (show (v + (maxBound :: Int) + 1)))
 
 -- | For convenience, so we can write /e.g./ @"a"@ instead of @TyVar "a"@.
 instance IsString Type where
@@ -168,7 +186,8 @@ type UCtx = Ctx UPolytype
 -- | A @Poly t@ is a universally quantified @t@.  The variables in the
 --   list are bound inside the @t@.  For example, the type @forall
 --   a. a -> a@ would be represented as @Forall ["a"] (TyFun "a" "a")@.
-data Poly t = Forall [Var] t deriving (Show, Eq, Functor, Data)
+data Poly t = Forall [Var] t
+  deriving (Show, Eq, Functor, Data)
 
 -- | A polytype without unification variables.
 type Polytype = Poly Type
@@ -185,7 +204,10 @@ type UPolytype = Poly UType
 --   contain definitions ('Swarm.Language.Syntax.TDef').  A module
 --   contains the overall type of the expression, as well as the
 --   context giving the types of any defined variables.
-data Module s t = Module { moduleTy :: s, moduleCtx :: Ctx t }
+data Module s t = Module
+  { moduleTy  :: s
+  , moduleCtx :: Ctx t
+  }
   deriving (Show, Eq, Functor, Data)
 
 -- | A 'TModule' is the final result of the type inference process on
@@ -237,14 +259,14 @@ class WithU t where
 -- | 'Type' is an instance of 'WithU', with associated type 'UType'.
 instance WithU Type where
   type U Type = UType
-  toU = unfreeze
+  toU   = unfreeze
   fromU = fromJust . freeze
 
 -- | A 'WithU' instance can be lifted through any functor (including,
 --   in particular, 'Ctx' and 'Poly').
 instance (WithU t, Functor f) => WithU (f t) where
   type U (f t) = f (U t)
-  toU = fmap toU
+  toU   = fmap toU
   fromU = fmap fromU
 
 ------------------------------------------------------------
@@ -258,19 +280,19 @@ pattern TyVar :: Var -> Type
 pattern TyVar v = Fix (TyVarF v)
 
 pattern TyUnit :: Type
-pattern TyUnit   = Fix (TyBaseF BUnit)
+pattern TyUnit = Fix (TyBaseF BUnit)
 
 pattern TyInt :: Type
-pattern TyInt    = Fix (TyBaseF BInt)
+pattern TyInt = Fix (TyBaseF BInt)
 
 pattern TyString :: Type
 pattern TyString = Fix (TyBaseF BString)
 
 pattern TyDir :: Type
-pattern TyDir    = Fix (TyBaseF BDir)
+pattern TyDir = Fix (TyBaseF BDir)
 
 pattern TyBool :: Type
-pattern TyBool   = Fix (TyBaseF BBool)
+pattern TyBool = Fix (TyBaseF BBool)
 
 infixl 6 :*:
 
@@ -292,19 +314,19 @@ pattern UTyVar :: Var -> UType
 pattern UTyVar v = UTerm (TyVarF v)
 
 pattern UTyUnit :: UType
-pattern UTyUnit   = UTerm (TyBaseF BUnit)
+pattern UTyUnit = UTerm (TyBaseF BUnit)
 
 pattern UTyInt :: UType
-pattern UTyInt    = UTerm (TyBaseF BInt)
+pattern UTyInt = UTerm (TyBaseF BInt)
 
 pattern UTyString :: UType
 pattern UTyString = UTerm (TyBaseF BString)
 
 pattern UTyDir :: UType
-pattern UTyDir    = UTerm (TyBaseF BDir)
+pattern UTyDir = UTerm (TyBaseF BDir)
 
 pattern UTyBool :: UType
-pattern UTyBool   = UTerm (TyBaseF BBool)
+pattern UTyBool = UTerm (TyBaseF BBool)
 
 pattern UTyProd :: UType -> UType -> UType
 pattern UTyProd ty1 ty2 = UTerm (TyProdF ty1 ty2)

@@ -31,44 +31,54 @@ module Swarm.Language.Typecheck
     TypeErr(..)
 
     -- * Inference monad
-
-  , Infer, runInfer, lookup
+  , Infer
+  , runInfer
+  , lookup
   , fresh
 
     -- * Unification
-
-    , substU, (=:=), HasBindings(..)
-    , instantiate, skolemize, generalize
+  , substU
+  , (=:=)
+  , HasBindings(..)
+  , instantiate
+  , skolemize
+  , generalize
 
     -- * Type inferen
-
-  , inferTop, inferModule, infer, inferConst, check
-
+  , inferTop
+  , inferModule
+  , infer
+  , inferConst
+  , check
   , decomposeCmdTy
   , decomposeFunTy
   ) where
 
 
-import           Control.Category           ((>>>))
+import           Control.Category               ( (>>>) )
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Data.Foldable              (fold)
+import           Data.Foldable                  ( fold )
 import           Data.Functor.Identity
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as M
 import           Data.Maybe
-import           Data.Set                   (Set, (\\))
-import qualified Data.Set                   as S
-import           Prelude                    hiding (lookup)
+import           Data.Set                       ( Set
+                                                , (\\)
+                                                )
+import qualified Data.Set                      as S
+import           Prelude                 hiding ( lookup )
 
-import           Control.Unification        hiding (applyBindings, (=:=))
-import qualified Control.Unification        as U
+import           Control.Unification     hiding ( (=:=)
+                                                , applyBindings
+                                                )
+import qualified Control.Unification           as U
 import           Control.Unification.IntVar
-import           Data.Functor.Fixedpoint    (cata)
+import           Data.Functor.Fixedpoint        ( cata )
 
-import           Swarm.Language.Context     hiding (lookup)
-import qualified Swarm.Language.Context     as Ctx
-import           Swarm.Language.Parse.QQ    (tyQ)
+import           Swarm.Language.Context  hiding ( lookup )
+import qualified Swarm.Language.Context        as Ctx
+import           Swarm.Language.Parse.QQ        ( tyQ )
 import           Swarm.Language.Syntax
 import           Swarm.Language.Types
 
@@ -85,12 +95,14 @@ type Infer = ReaderT UCtx (ExceptT TypeErr (IntBindingT TypeF Identity))
 --   'TypeErr' or a fully resolved 'TModule'.
 runInfer :: TCtx -> Infer UModule -> Either TypeErr TModule
 runInfer ctx =
-  (>>= applyBindings) >>>
-  (>>= \(Module uty uctx) -> Module <$> (fromU <$> generalize uty) <*> pure (fromU uctx)) >>>
-  flip runReaderT (toU ctx) >>>
-  runExceptT >>>
-  evalIntBindingT >>>
-  runIdentity
+  (>>= applyBindings)
+    >>> (>>= \(Module uty uctx) ->
+          Module <$> (fromU <$> generalize uty) <*> pure (fromU uctx)
+        )
+    >>> flip runReaderT (toU ctx)
+    >>> runExceptT
+    >>> evalIntBindingT
+    >>> runIdentity
 
 -- | Look up a variable in the ambient type context, either throwing
 --   an 'UnboundVar' error if it is not found, or opening its
@@ -118,16 +130,24 @@ class FreeVars a where
 -- | We can get the free variables of a type (which would consist of
 --   only type variables).
 instance FreeVars Type where
-  freeVars = return . cata (\case {TyVarF x -> S.singleton (Left x); f -> fold f})
+  freeVars = return . cata
+    (\case
+      TyVarF x -> S.singleton (Left x)
+      f        -> fold f
+    )
 
 -- | We can get the free variables of a 'UType' (which would consist
 --   of unification variables as well as type variables).
 instance FreeVars UType where
   freeVars ut = do
     fuvs <- fmap (S.fromList . map Right) . lift . lift $ getFreeVars ut
-    let ftvs = ucata (const S.empty)
-                     (\case {TyVarF x -> S.singleton (Left x); f -> fold f})
-                     ut
+    let ftvs = ucata
+          (const S.empty)
+          (\case
+            TyVarF x -> S.singleton (Left x)
+            f        -> fold f
+          )
+          ut
     return $ fuvs `S.union` ftvs
 
 -- | We can also get the free variables of a polytype.
@@ -150,8 +170,8 @@ substU :: Map (Either Var IntVar) UType -> UType -> UType
 substU m = ucata
   (\v -> fromMaybe (UVar v) (M.lookup (Right v) m))
   (\case
-      TyVarF v -> fromMaybe (UTyVar v) (M.lookup (Left v) m)
-      f        -> UTerm f
+    TyVarF v -> fromMaybe (UTyVar v) (M.lookup (Left v) m)
+    f        -> UTerm f
   )
 
 ------------------------------------------------------------
@@ -182,7 +202,8 @@ instance HasBindings UCtx where
   applyBindings = mapM applyBindings
 
 instance HasBindings UModule where
-  applyBindings (Module uty uctx) = Module <$> applyBindings uty <*> applyBindings uctx
+  applyBindings (Module uty uctx) =
+    Module <$> applyBindings uty <*> applyBindings uctx
 
 ------------------------------------------------------------
 -- Converting between mono- and polytypes
@@ -204,16 +225,16 @@ skolemize :: UPolytype -> Infer UType
 skolemize (Forall xs uty) = do
   xs' <- mapM (const fresh) xs
   return $ substU (M.fromList (zip (map Left xs) (map toSkolem xs'))) uty
-  where
-    toSkolem (UVar v) = UTyVar (mkVarName "s" v)
-    toSkolem x        = error $ "Impossible! Non-UVar in skolemize.toSkolem: " ++ show x
+ where
+  toSkolem (UVar v) = UTyVar (mkVarName "s" v)
+  toSkolem x = error $ "Impossible! Non-UVar in skolemize.toSkolem: " ++ show x
 
 -- | 'generalize' is the opposite of 'instantiate': add a 'Forall'
 --   which closes over all free type and unification variables.
 generalize :: UType -> Infer UPolytype
 generalize uty = do
-  uty' <- applyBindings uty
-  ctx <- ask
+  uty'   <- applyBindings uty
+  ctx    <- ask
   tmfvs  <- freeVars uty'
   ctxfvs <- freeVars ctx
   let fvs = S.toList $ tmfvs \\ ctxfvs
@@ -243,7 +264,7 @@ data TypeErr
   | DefNotTopLevel Term
 
 instance Fallible TypeF IntVar TypeErr where
-  occursFailure = Infinite
+  occursFailure   = Infinite
   mismatchFailure = Mismatch
 
 ------------------------------------------------------------
@@ -266,7 +287,7 @@ inferModule = \case
   -- appropriate context.
   TDef x Nothing t1 -> do
     xTy <- fresh
-    ty <- withBinding x (Forall [] xTy) $ infer t1
+    ty  <- withBinding x (Forall [] xTy) $ infer t1
     xTy =:= ty
     pty <- generalize ty
     return $ Module (UTyCmd UTyUnit) (singleton x pty)
@@ -286,7 +307,7 @@ inferModule = \case
 
     -- First, infer the left side.
     Module cmda ctx1 <- inferModule c1
-    a <- decomposeCmdTy cmda
+    a                <- decomposeCmdTy cmda
 
     -- Now infer the right side under an extended context: things in
     -- scope on the right-hand side include both any definitions
@@ -302,7 +323,7 @@ inferModule = \case
       -- to return cmdb, but it's important to ensure it's a command
       -- type anyway.  Otherwise something like 'move; 3' would be
       -- accepted with type int.
-      _ <- decomposeCmdTy cmdb
+      _                <- decomposeCmdTy cmdb
 
       -- Ctx.union is right-biased, so ctx1 `union` ctx2 means later
       -- definitions will shadow previous ones.
@@ -315,28 +336,28 @@ inferModule = \case
 -- | Infer the type of a term which does not contain definitions.
 infer :: Term -> Infer UType
 
-infer   TUnit                     = return UTyUnit
-infer   (TConst c)                = instantiate $ inferConst c
-infer   (TDir _)                  = return UTyDir
-infer   (TInt _)                  = return UTyInt
-infer   (TAntiInt _)              = return UTyInt
-infer   (TString _)               = return UTyString
-infer   (TAntiString _)           = return UTyString
-infer   (TBool _)                 = return UTyBool
+infer TUnit                   = return UTyUnit
+infer (TConst      c        ) = instantiate $ inferConst c
+infer (TDir        _        ) = return UTyDir
+infer (TInt        _        ) = return UTyInt
+infer (TAntiInt    _        ) = return UTyInt
+infer (TString     _        ) = return UTyString
+infer (TAntiString _        ) = return UTyString
+infer (TBool       _        ) = return UTyBool
 
 -- To infer the type of a pair, just infer both components.
-infer (TPair t1 t2)               = UTyProd <$> infer t1 <*> infer t2
+infer (TPair t1 t2          ) = UTyProd <$> infer t1 <*> infer t2
 
 -- delay t has the same type as t.
-infer (TDelay t)                  = infer t
+infer (TDelay t             ) = infer t
 
 -- Just look up variables in the context.
-infer (TVar x)                    = lookup x
+infer (TVar   x             ) = lookup x
 
 -- To infer the type of a lambda if the type of the argument is
 -- provided, just infer the body under an extended context and return
 -- the appropriate function type.
-infer (TLam x (Just argTy) t)   = do
+infer (TLam x (Just argTy) t) = do
   let uargTy = toU argTy
   resTy <- withBinding x (Forall [] uargTy) $ infer t
   return $ UTyFun uargTy resTy
@@ -349,10 +370,10 @@ infer (TLam x Nothing t) = do
   return $ UTyFun argTy resTy
 
 -- To infer the type of an application:
-infer (TApp f x)              = do
+infer (TApp f x) = do
 
   -- Infer the type of the left-hand side and make sure it has a function type.
-  fTy <- infer f
+  fTy        <- infer f
   (ty1, ty2) <- decomposeFunTy fTy
 
   -- Then check that the argument has the right type.
@@ -361,12 +382,12 @@ infer (TApp f x)              = do
 
 -- We can infer the type of a let whether a type has been provided for
 -- the variable or not.
-infer (TLet x Nothing t1 t2)    = do
+infer (TLet x Nothing t1 t2) = do
   xTy <- fresh
   uty <- withBinding x (Forall [] xTy) $ infer t1
   xTy =:= uty
   upty <- generalize uty
-  withBinding  x upty $ infer t2
+  withBinding x upty $ infer t2
 infer (TLet x (Just pty) t1 t2) = do
   let upty = toU pty
   -- If an explicit polytype has been provided, skolemize it and check
@@ -376,19 +397,19 @@ infer (TLet x (Just pty) t1 t2) = do
     check t1 uty
     infer t2
 
-infer t@TDef {} = throwError $ DefNotTopLevel t
+infer t@TDef{}         = throwError $ DefNotTopLevel t
 
 infer (TBind mx c1 c2) = do
   ty1 <- infer c1
-  a <- decomposeCmdTy ty1
+  a   <- decomposeCmdTy ty1
   ty2 <- maybe id (`withBinding` Forall [] a) mx $ infer c2
-  _ <- decomposeCmdTy ty2
+  _   <- decomposeCmdTy ty2
   return ty2
 
 -- | Decompose a type that is supposed to be a command type.
 decomposeCmdTy :: UType -> Infer UType
 decomposeCmdTy (UTyCmd a) = return a
-decomposeCmdTy ty = do
+decomposeCmdTy ty         = do
   a <- fresh
   ty =:= UTyCmd a
   return a
@@ -396,7 +417,7 @@ decomposeCmdTy ty = do
 -- | Decompose a type that is supposed to be a function type.
 decomposeFunTy :: UType -> Infer (UType, UType)
 decomposeFunTy (UTyFun ty1 ty2) = return (ty1, ty2)
-decomposeFunTy ty = do
+decomposeFunTy ty               = do
   ty1 <- fresh
   ty2 <- fresh
   ty =:= UTyFun ty1 ty2
@@ -446,5 +467,5 @@ inferConst c = toU $ case c of
 check :: Term -> UType -> Infer ()
 check t ty = do
   ty' <- infer t
-  _ <- ty =:= ty'
+  _   <- ty =:= ty'
   return ()

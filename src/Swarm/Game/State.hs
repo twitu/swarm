@@ -18,53 +18,65 @@
 
 module Swarm.Game.State
   ( -- * Game state record
-
-    ViewCenterRule(..), GameMode(..), REPLStatus(..), RunStatus(..)
-
-  , GameState, initGameState
+    ViewCenterRule(..)
+  , GameMode(..)
+  , REPLStatus(..)
+  , RunStatus(..)
+  , GameState
+  , initGameState
 
     -- ** GameState fields
-
-  , gameMode, runStatus, paused, robotMap, gensym
-  , entityMap, recipesOut, recipesIn, world
-  , viewCenterRule, viewCenter
-  , needsRedraw, replStatus, messageQueue
+  , gameMode
+  , runStatus
+  , paused
+  , robotMap
+  , gensym
+  , entityMap
+  , recipesOut
+  , recipesIn
+  , world
+  , viewCenterRule
+  , viewCenter
+  , needsRedraw
+  , replStatus
+  , messageQueue
   , focusedRobotName
 
     -- * Utilities
-
   , applyViewCenterRule
   , recalcViewCenter
   , modifyViewCenter
   , viewingRegion
-
   , focusedRobot
   , ensureUniqueName
   , addRobot
-
   , emitMessage
   ) where
 
 import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.State
-import           Data.Bifunctor       (first)
-import           Data.Int             (Int64)
-import           Data.IntMap          (IntMap)
-import           Data.Map             (Map)
-import qualified Data.Map             as M
-import           Data.Maybe           (fromMaybe, mapMaybe)
-import           Data.Text            (Text)
-import qualified Data.Text            as T
+import           Data.Bifunctor                 ( first )
+import           Data.Int                       ( Int64 )
+import           Data.IntMap                    ( IntMap )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as M
+import           Data.Maybe                     ( fromMaybe
+                                                , mapMaybe
+                                                )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 import           Linear
-import           Witch                (into)
+import           Witch                          ( into )
 
 import           Swarm.Game.Entity
 import           Swarm.Game.Recipe
 import           Swarm.Game.Robot
 import           Swarm.Game.Value
-import qualified Swarm.Game.World     as W
-import           Swarm.Game.WorldGen  (findGoodOrigin, testWorld2)
+import qualified Swarm.Game.World              as W
+import           Swarm.Game.WorldGen            ( findGoodOrigin
+                                                , testWorld2
+                                                )
 import           Swarm.Language.Types
 import           Swarm.Util
 
@@ -169,21 +181,23 @@ world :: Lens' GameState (W.World Int Entity)
 --   everything synchronize.
 viewCenterRule :: Lens' GameState ViewCenterRule
 viewCenterRule = lens getter setter
-  where
-    getter :: GameState -> ViewCenterRule
-    getter = _viewCenterRule
+ where
+  getter :: GameState -> ViewCenterRule
+  getter = _viewCenterRule
 
-    -- The setter takes care of updating viewCenter and focusedRobotName
-    -- So non of this fields get out of sync.
-    setter :: GameState -> ViewCenterRule -> GameState
-    setter g rule =
-      case rule of
-        VCLocation v2 -> g { _viewCenterRule = rule, _viewCenter = v2}
-        VCRobot txt ->
-          let robotcenter = g ^? robotMap . ix txt <&> view robotLocation -- retrive the loc of the robot if it exist, Nothing otherwise.  sometimes, lenses are amazing...
-          in case robotcenter of
-               Nothing -> g
-               Just v2 -> g { _viewCenterRule = rule, _viewCenter = v2, _focusedRobotName = txt}
+  -- The setter takes care of updating viewCenter and focusedRobotName
+  -- So non of this fields get out of sync.
+  setter :: GameState -> ViewCenterRule -> GameState
+  setter g rule = case rule of
+    VCLocation v2 -> g { _viewCenterRule = rule, _viewCenter = v2 }
+    VCRobot txt ->
+      let robotcenter = g ^? robotMap . ix txt <&> view robotLocation -- retrive the loc of the robot if it exist, Nothing otherwise.  sometimes, lenses are amazing...
+      in  case robotcenter of
+            Nothing -> g
+            Just v2 -> g { _viewCenterRule   = rule
+                         , _viewCenter       = v2
+                         , _focusedRobotName = txt
+                         }
 
 
 -- | The current center of the world view. Note that this cannot be
@@ -212,8 +226,8 @@ focusedRobotName = to _focusedRobotName
 --   is @Maybe@ because the rule may refer to a robot which does not
 --   exist.
 applyViewCenterRule :: ViewCenterRule -> Map Text Robot -> Maybe (V2 Int64)
-applyViewCenterRule (VCLocation l) _ = Just l
-applyViewCenterRule (VCRobot name) m = m ^? at name . _Just . robotLocation
+applyViewCenterRule (VCLocation l   ) _ = Just l
+applyViewCenterRule (VCRobot    name) m = m ^? at name . _Just . robotLocation
 
 -- | Recalculate the veiw center (and cache the result in the
 --   'viewCenter' field) based on the current 'viewCenterRule'.  If
@@ -221,31 +235,32 @@ applyViewCenterRule (VCRobot name) m = m ^? at name . _Just . robotLocation
 --   simply leave the current 'viewCenter' as it is. Set 'needsRedraw'
 --   if the view center changes.
 recalcViewCenter :: GameState -> GameState
-recalcViewCenter g = g
-  { _viewCenter = newViewCenter }
-  & (if newViewCenter /= oldViewCenter then needsRedraw .~ True else id)
-  where
-    oldViewCenter = g ^. viewCenter
-    newViewCenter = fromMaybe oldViewCenter (applyViewCenterRule (g ^. viewCenterRule) (g ^. robotMap))
+recalcViewCenter g =
+  g { _viewCenter = newViewCenter }
+    & (if newViewCenter /= oldViewCenter then needsRedraw .~ True else id)
+ where
+  oldViewCenter = g ^. viewCenter
+  newViewCenter = fromMaybe
+    oldViewCenter
+    (applyViewCenterRule (g ^. viewCenterRule) (g ^. robotMap))
 
 -- | Modify the 'viewCenter' by applying an arbitrary function to the
 --   current value.  Note that this also modifies the 'viewCenterRule'
 --   to match.  After calling this function the 'viewCenterRule' will
 --   specify a particular location, not a robot.
 modifyViewCenter :: (V2 Int64 -> V2 Int64) -> GameState -> GameState
-modifyViewCenter update g = g
-  & case g ^. viewCenterRule of
-      VCLocation l -> viewCenterRule .~ VCLocation (update l)
-      VCRobot _    -> viewCenterRule .~ VCLocation (update (g ^. viewCenter))
+modifyViewCenter update g = g & case g ^. viewCenterRule of
+  VCLocation l -> viewCenterRule .~ VCLocation (update l)
+  VCRobot    _ -> viewCenterRule .~ VCLocation (update (g ^. viewCenter))
 
 -- | Given a width and height, compute the region, centered on the
 --   'viewCenter', that should currently be in view.
-viewingRegion :: GameState -> (Int64,Int64) -> (W.Coords, W.Coords)
-viewingRegion g (w,h) = (W.Coords (rmin,cmin), W.Coords (rmax,cmax))
-  where
-    V2 cx cy = g ^. viewCenter
-    (rmin,rmax) = over both (+ (-cy - h`div`2)) (0, h-1)
-    (cmin,cmax) = over both (+ (cx - w`div`2)) (0, w-1)
+viewingRegion :: GameState -> (Int64, Int64) -> (W.Coords, W.Coords)
+viewingRegion g (w, h) = (W.Coords (rmin, cmin), W.Coords (rmax, cmax))
+ where
+  V2 cx cy     = g ^. viewCenter
+  (rmin, rmax) = over both (+ (-cy - h `div` 2)) (0, h - 1)
+  (cmin, cmax) = over both (+ (cx - w `div` 2)) (0, w - 1)
 
 
 -- | Find out which robot is currently specified by the
@@ -292,7 +307,11 @@ initGameState = do
   recipes <- loadRecipes entities >>= (`isRightOr` id)
 
   let baseDeviceNames =
-        [ "solar panel", "3D printer", "dictionary", "workbench", "grabber"
+        [ "solar panel"
+        , "3D printer"
+        , "dictionary"
+        , "workbench"
+        , "grabber"
         , "life support system"
         ]
       baseDevices = mapMaybe (`lookupEntityName` entities) baseDeviceNames
@@ -300,26 +319,28 @@ initGameState = do
   let baseName = "base"
 
   return $ GameState
-    { _gameMode       = Classic
-    , _runStatus      = Running
-    , _robotMap       = M.singleton baseName (baseRobot baseDevices)
-    , _gensym         = 0
-    , _entityMap      = entities
-    , _recipesOut     = outRecipeMap recipes
-    , _recipesIn      = inRecipeMap recipes
-    , _world          =
-      W.newWorld . fmap ((lkup entities <$>) . first fromEnum) . findGoodOrigin $ testWorld2
-    , _viewCenterRule = VCRobot baseName
-    , _viewCenter     = V2 0 0
-    , _needsRedraw    = False
-    , _replStatus     = REPLDone
-    , _messageQueue   = []
+    { _gameMode         = Classic
+    , _runStatus        = Running
+    , _robotMap         = M.singleton baseName (baseRobot baseDevices)
+    , _gensym           = 0
+    , _entityMap        = entities
+    , _recipesOut       = outRecipeMap recipes
+    , _recipesIn        = inRecipeMap recipes
+    , _world            = W.newWorld
+                          . fmap ((lkup entities <$>) . first fromEnum)
+                          . findGoodOrigin
+                          $ testWorld2
+    , _viewCenterRule   = VCRobot baseName
+    , _viewCenter       = V2 0 0
+    , _needsRedraw      = False
+    , _replStatus       = REPLDone
+    , _messageQueue     = []
     , _focusedRobotName = baseName
     }
-  where
-    lkup :: EntityMap -> Maybe Text -> Maybe Entity
-    lkup _  Nothing  = Nothing
-    lkup em (Just t) = lookupEntityName t em
+ where
+  lkup :: EntityMap -> Maybe Text -> Maybe Entity
+  lkup _  Nothing  = Nothing
+  lkup em (Just t) = lookupEntityName t em
 
 maxMessageQueueSize :: Int
 maxMessageQueueSize = 1000
@@ -328,4 +349,6 @@ maxMessageQueueSize = 1000
 emitMessage :: MonadState GameState m => Text -> m ()
 emitMessage msg = do
   q <- use messageQueue
-  messageQueue %= (msg:) . (if length q >= maxMessageQueueSize then init else id)
+  messageQueue
+    %= (msg :)
+    .  (if length q >= maxMessageQueueSize then init else id)

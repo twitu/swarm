@@ -52,31 +52,34 @@
 
 module Swarm.Game.CEK
   ( -- * Frames and continuations
-    Frame(..), Cont
+    Frame(..)
+  , Cont
 
     -- * CEK machine states
-
   , CEK(..)
 
     -- ** Construction
-
-  , initMachine, initMachine', idleMachine
+  , initMachine
+  , initMachine'
+  , idleMachine
 
     -- ** Extracting information
   , finalValue
 
     -- ** Pretty-printing
-  , prettyFrame, prettyCont, prettyCEK
+  , prettyFrame
+  , prettyCont
+  , prettyCEK
   ) where
 
-import           Control.Lens.Combinators  (pattern Empty)
-import           Data.List                 (intercalate)
-import qualified Data.Set                  as S
-import           Witch                     (from)
+import           Control.Lens.Combinators       ( pattern Empty )
+import           Data.List                      ( intercalate )
+import qualified Data.Set                      as S
+import           Witch                          ( from )
 
 import           Swarm.Game.Exception
-import           Swarm.Game.Value          as V
-import           Swarm.Language.Capability (CapCtx)
+import           Swarm.Game.Value              as V
+import           Swarm.Language.Capability      ( CapCtx )
 import           Swarm.Language.Context
 import           Swarm.Language.Pipeline
 import           Swarm.Language.Pretty
@@ -201,21 +204,20 @@ initMachine t e = initMachine' t e []
 
 -- | Like 'initMachine', but also take a starting continuation.
 initMachine' :: ProcessedTerm -> Env -> Cont -> CEK
-initMachine' (ProcessedTerm t (Module (Forall _ (TyCmd _)) ctx) _ capCtx) e k
-  = case ctx of
-      Empty -> In t e (FExec : k)
-      _     -> In t e (FExec : FLoadEnv ctx capCtx : k)
+initMachine' (ProcessedTerm t (Module (Forall _ (TyCmd _)) ctx) _ capCtx) e k =
+  case ctx of
+    Empty -> In t e (FExec : k)
+    _     -> In t e (FExec : FLoadEnv ctx capCtx : k)
 initMachine' (ProcessedTerm t _ _ _) e k = In t e k
 
 -- | A machine which does nothing.
 idleMachine :: CEK
 idleMachine = initMachine trivialTerm empty
-  where
-    trivialTerm = ProcessedTerm
-      (TConst Noop)
-      (trivMod (Forall [] (TyCmd TyUnit)))
-      S.empty
-      empty
+ where
+  trivialTerm = ProcessedTerm (TConst Noop)
+                              (trivMod (Forall [] (TyCmd TyUnit)))
+                              S.empty
+                              empty
 
 ------------------------------------------------------------
 -- Very crude pretty-printing of CEK states.  Should really make a
@@ -225,30 +227,25 @@ idleMachine = initMachine trivialTerm empty
 -- | Very poor pretty-printing of CEK machine states, really just for
 --   debugging. At some point we should make a nicer version.
 prettyCEK :: CEK -> String
-prettyCEK (In c _ k) = unlines
-  [ "▶ " ++ prettyString c
-  , "  " ++ prettyCont k ]
-prettyCEK (Out v k) = unlines
-  [ "◀ " ++ from (prettyValue v)
-  , "  " ++ prettyCont k ]
-prettyCEK (Up e k) = unlines
-  [ "! " ++ from (formatExn e)
-  , "  " ++ prettyCont k ]
+prettyCEK (In c _ k) = unlines ["▶ " ++ prettyString c, "  " ++ prettyCont k]
+prettyCEK (Out v k) =
+  unlines ["◀ " ++ from (prettyValue v), "  " ++ prettyCont k]
+prettyCEK (Up e k) = unlines ["! " ++ from (formatExn e), "  " ++ prettyCont k]
 
 -- | Poor pretty-printing of continuations.
 prettyCont :: Cont -> String
-prettyCont = ("["++) . (++"]") . intercalate " | " . map prettyFrame
+prettyCont = ("[" ++) . (++ "]") . intercalate " | " . map prettyFrame
 
 -- | Poor pretty-printing of frames.
 prettyFrame :: Frame -> String
-prettyFrame (FSnd t _)           = "(_, " ++ prettyString t ++ ")"
-prettyFrame (FFst v)             = "(" ++ from (prettyValue v) ++ ", _)"
-prettyFrame (FArg t _)           = "_ " ++ prettyString t
-prettyFrame (FApp v)             = prettyString (valueToTerm v) ++ " _"
-prettyFrame (FLet x t _)         = "let " ++ from x ++ " = _ in " ++ prettyString t
-prettyFrame (FTry c)             = "try _ (" ++ from (prettyValue c) ++ ")"
+prettyFrame (FSnd t _  )         = "(_, " ++ prettyString t ++ ")"
+prettyFrame (FFst v    )         = "(" ++ from (prettyValue v) ++ ", _)"
+prettyFrame (FArg t _  )         = "_ " ++ prettyString t
+prettyFrame (FApp v    )         = prettyString (valueToTerm v) ++ " _"
+prettyFrame (FLet x t _) = "let " ++ from x ++ " = _ in " ++ prettyString t
+prettyFrame (FTry c    )         = "try _ (" ++ from (prettyValue c) ++ ")"
 prettyFrame FUnionEnv{}          = "_ ∪ <Env>"
 prettyFrame FLoadEnv{}           = "loadEnv"
 prettyFrame FExec                = "exec _"
-prettyFrame (FBind Nothing t _)  = "_ ; " ++ prettyString t
+prettyFrame (FBind Nothing  t _) = "_ ; " ++ prettyString t
 prettyFrame (FBind (Just x) t _) = from x ++ " <- _ ; " ++ prettyString t

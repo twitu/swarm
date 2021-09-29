@@ -22,37 +22,44 @@
 
 module Swarm.Util
   ( -- * Miscellaneous utilities
-
-    (?), maxOn, readFileMay, cycleEnum
+    (?)
+  , maxOn
+  , readFileMay
+  , cycleEnum
 
     -- * English language utilities
-
-  , quote, squote, commaList, indefinite, indefiniteQ, plural, number
+  , quote
+  , squote
+  , commaList
+  , indefinite
+  , indefiniteQ
+  , plural
+  , number
 
     -- * Validation utilities
-
-  , holdsOr, isJustOr, isRightOr, isSuccessOr
+  , holdsOr
+  , isJustOr
+  , isRightOr
+  , isSuccessOr
 
     -- * Template Haskell utilities
-
   , liftText
-  )
-  where
+  ) where
 
-import           Control.Monad              (unless)
+import           Control.Monad                  ( unless )
 import           Control.Monad.Error.Class
 import           Data.Either.Validation
-import           Data.Int                   (Int64)
-import           Data.Maybe                 (fromMaybe)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
+import           Data.Int                       ( Int64 )
+import           Data.Maybe                     ( fromMaybe )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 import           Data.Yaml
 import           Language.Haskell.TH
-import           Language.Haskell.TH.Syntax (lift)
-import           Linear                     (V2)
-import qualified NLP.Minimorph.English      as MM
-import           NLP.Minimorph.Util         ((<+>))
-import           System.Directory           (doesFileExist)
+import           Language.Haskell.TH.Syntax     ( lift )
+import           Linear                         ( V2 )
+import qualified NLP.Minimorph.English         as MM
+import           NLP.Minimorph.Util             ( (<+>) )
+import           System.Directory               ( doesFileExist )
 
 infixr 1 ?
 
@@ -66,9 +73,8 @@ infixr 1 ?
 -- | Find the maximum of two values, comparing them according to a
 --   custom projection function.
 maxOn :: Ord b => (a -> b) -> a -> a -> a
-maxOn f x y
-  | f x > f y = x
-  | otherwise = y
+maxOn f x y | f x > f y = x
+            | otherwise = y
 
 -- | Safely attempt to read a file, returning @Nothing@ if the file
 --   does not exist.  \"Safely\" should be read in scare quotes here,
@@ -86,9 +92,8 @@ readFileMay file = do
 -- | Take the successor of an 'Enum' type, wrapping around when it
 --   reaches the end.
 cycleEnum :: (Eq e, Enum e, Bounded e) => e -> e
-cycleEnum e
-  | e == maxBound = minBound
-  | otherwise     = succ e
+cycleEnum e | e == maxBound = minBound
+            | otherwise     = succ e
 
 --------------------------------------------------
 -- Some language-y stuff
@@ -125,10 +130,10 @@ quote t = T.concat ["\"", t, "\""]
 
 -- | Make a list of things with commas and the word "and".
 commaList :: [Text] -> Text
-commaList []    = ""
-commaList [t]   = t
-commaList [s,t] = T.unwords [s, "and", t]
-commaList ts    = T.unwords $ map (`T.append` ",") (init ts) ++ ["and", last ts]
+commaList []     = ""
+commaList [t]    = t
+commaList [s, t] = T.unwords [s, "and", t]
+commaList ts = T.unwords $ map (`T.append` ",") (init ts) ++ ["and", last ts]
 
 ------------------------------------------------------------
 -- Some orphan instances
@@ -152,7 +157,7 @@ Nothing `isJustOr` e = throwError e
 --   based on the value in the 'Left'.
 isRightOr :: MonadError e m => Either b a -> (b -> e) -> m a
 Right a `isRightOr` _ = return a
-Left b `isRightOr` f  = throwError (f b)
+Left  b `isRightOr` f = throwError (f b)
 
 -- | Require that a 'Validation' value is 'Success', or throw an exception
 --   based on the value in the 'Failure'.

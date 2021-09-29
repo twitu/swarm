@@ -25,7 +25,10 @@ module Swarm.Game.Display
   , Display
 
     -- ** Fields
-  , defaultChar, orientationMap, displayAttr, displayPriority
+  , defaultChar
+  , orientationMap
+  , displayAttr
+  , displayPriority
 
     -- ** Lookup
   , lookupDisplay
@@ -35,17 +38,23 @@ module Swarm.Game.Display
   , defaultTerrainDisplay
   , defaultEntityDisplay
   , defaultRobotDisplay
-
   ) where
 
-import           Brick                 (AttrName, Widget, str, withAttr)
-import           Control.Lens          hiding (Const, from, (.=))
+import           Brick                          ( AttrName
+                                                , Widget
+                                                , str
+                                                , withAttr
+                                                )
+import           Control.Lens            hiding ( (.=)
+                                                , Const
+                                                , from
+                                                )
 import           Data.Hashable
-import           Data.Map              (Map)
-import qualified Data.Map              as M
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as M
 
 import           Data.Yaml
-import           GHC.Generics          (Generic)
+import           GHC.Generics                   ( Generic )
 
 import           Swarm.Language.Syntax
 import           Swarm.TUI.Attr
@@ -89,50 +98,59 @@ displayAttr :: Lens' Display AttrName
 displayPriority :: Lens' Display Priority
 
 instance FromJSON Display where
-  parseJSON = withObject "Display" $ \v -> Display
-    <$> v .:  "char"
-    <*> v .:? "orientationMap" .!= M.empty
-    <*> v .:? "attr"           .!= entityAttr
-    <*> v .:? "priority"       .!= 1
+  parseJSON = withObject "Display" $ \v ->
+    Display
+      <$> v
+      .:  "char"
+      <*> v
+      .:? "orientationMap"
+      .!= M.empty
+      <*> v
+      .:? "attr"
+      .!= entityAttr
+      <*> v
+      .:? "priority"
+      .!= 1
 
 instance ToJSON Display where
-  toJSON d = object $
-    [ "char"           .= (d ^. defaultChar)
-    , "attr"           .= (d ^. displayAttr)
-    , "priority"       .= (d ^. displayPriority)
-    ]
-    ++
-    [ "orientationMap" .= (d ^. orientationMap) | not (M.null (d ^. orientationMap)) ]
+  toJSON d =
+    object
+      $  [ "char" .= (d ^. defaultChar)
+         , "attr" .= (d ^. displayAttr)
+         , "priority" .= (d ^. displayPriority)
+         ]
+      ++ [ "orientationMap" .= (d ^. orientationMap)
+         | not (M.null (d ^. orientationMap))
+         ]
 
 
 -- | Look up the character that should be used for a display, possibly
 --   given an orientation as input.
 lookupDisplay :: Maybe Direction -> Display -> Char
-lookupDisplay Nothing disp  = disp ^. defaultChar
-lookupDisplay (Just v) disp = M.lookup v (disp ^. orientationMap) ? (disp ^. defaultChar)
+lookupDisplay Nothing disp = disp ^. defaultChar
+lookupDisplay (Just v) disp =
+  M.lookup v (disp ^. orientationMap) ? (disp ^. defaultChar)
 
 -- | Given the (optional) orientation of an entity and its display,
 --   return a widget showing the entity.
 displayWidget :: Maybe Direction -> Display -> Widget n
-displayWidget orient disp = withAttr (disp ^. displayAttr) $ str [lookupDisplay orient disp]
+displayWidget orient disp =
+  withAttr (disp ^. displayAttr) $ str [lookupDisplay orient disp]
 
 -- | The default way to display some terrain using the given character
 --   and attribute, with priority 0.
 defaultTerrainDisplay :: Char -> AttrName -> Display
-defaultTerrainDisplay c attr
-  = defaultEntityDisplay c
-  & displayPriority .~ 0
-  & displayAttr .~ attr
+defaultTerrainDisplay c attr =
+  defaultEntityDisplay c & displayPriority .~ 0 & displayAttr .~ attr
 
 -- | Construct a default display for an entity that uses only a single
 --   display character, the default entity attribute, and priority 1.
 defaultEntityDisplay :: Char -> Display
-defaultEntityDisplay c = Display
-  { _defaultChar     = c
-  , _orientationMap  = M.empty
-  , _displayAttr     = entityAttr
-  , _displayPriority = 1
-  }
+defaultEntityDisplay c = Display { _defaultChar     = c
+                                 , _orientationMap  = M.empty
+                                 , _displayAttr     = entityAttr
+                                 , _displayPriority = 1
+                                 }
 
 -- | Construct a default robot display, with display characters
 --   @"Ω^>v<"@, the default robot attribute, and priority 10.
@@ -140,11 +158,7 @@ defaultRobotDisplay :: Display
 defaultRobotDisplay = Display
   { _defaultChar     = 'Ω'
   , _orientationMap  = M.fromList
-      [ (East,  '>')
-      , (West,  '<')
-      , (South, 'v')
-      , (North, '^')
-      ]
+                         [(East, '>'), (West, '<'), (South, 'v'), (North, '^')]
   , _displayAttr     = robotAttr
   , _displayPriority = 10
   }
