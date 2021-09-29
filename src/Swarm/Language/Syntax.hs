@@ -181,7 +181,7 @@ data ArithConst = Add | Sub | Mul | Div | Exp
 --   'Swarm.Game.Value.VCApp') until it has enough, then dispatch the constant's
 --   behavior.
 arity :: Const -> Int
-arity Wait         = 0
+arity Wait         = 1
 arity Noop         = 0
 arity Selfdestruct = 0
 arity Move         = 0
