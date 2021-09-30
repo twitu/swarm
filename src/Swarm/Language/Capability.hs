@@ -58,6 +58,7 @@ data Capability
   | CRandom       -- ^ Execute the 'Random' command
   | CAppear       -- ^ Execute the 'Appear' command
   | CCreate       -- ^ Execute the 'Create' command
+  | CLog          -- ^ Execute the 'Log' command
   | CCond         -- ^ Evaluate conditional expressions
   | CCompare      -- ^ Evaluate comparison operations
   | CArith        -- ^ Evaluate arithmetic operations
