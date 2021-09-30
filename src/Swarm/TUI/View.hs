@@ -31,15 +31,17 @@ module Swarm.TUI.View
   , drawWorld
   , drawCell
 
+    -- * Robot panel
+
+  , drawRobotPanel
+  , drawItem
+  , drawLabelledEntityName
+
     -- * Info panel
 
   , drawInfoPanel
-  , drawMessageBox
   , explainFocusedItem
   , drawMessages
-  , drawRobotInfo
-  , drawItem
-  , drawLabelledEntityName
 
     -- * REPL
   , drawREPL
@@ -60,7 +62,7 @@ import           Text.Wrap
 import           Brick                 hiding (Direction)
 import           Brick.Focus
 import           Brick.Forms
-import           Brick.Widgets.Border  (hBorder, hBorderWithLabel)
+import           Brick.Widgets.Border  (hBorderWithLabel)
 import           Brick.Widgets.Center  (center, hCenter)
 import           Brick.Widgets.Dialog
 import qualified Brick.Widgets.List    as BL
@@ -91,8 +93,11 @@ drawUI s =
   [ drawDialog (s ^. uiState)
   , joinBorders $
     hBox
-    [ hLimitPercent 25 $ panel highlightAttr fr InfoPanel plainBorder $
-      drawInfoPanel s
+    [ hLimitPercent 25 $
+      vBox
+      [ vLimitPercent 50 $ panel highlightAttr fr RobotPanel plainBorder $ drawRobotPanel s
+      , panel highlightAttr fr InfoPanel plainBorder $ drawInfoPanel s
+      ]
     , vBox
       [ panel highlightAttr fr WorldPanel
           (plainBorder & bottomLabels . rightLabel ?~ padLeftRight 1 (drawTPS s))
@@ -148,7 +153,7 @@ replHeight = 10
 chooseCursor :: AppState -> [CursorLocation n] -> Maybe (CursorLocation n)
 chooseCursor s locs = case s ^. uiState . uiModal of
   Nothing -> showFirstCursor s locs
-  Just _ -> Nothing
+  Just _  -> Nothing
 
 -- | The error dialog window.
 errorDialog :: Dialog ()
@@ -182,8 +187,9 @@ helpWidget = (helpKeys <=> fill ' ') <+> (helpCommands <=> fill ' ')
       , ("Ctrl-q", "quit the game")
       , ("Tab", "cycle panel focus")
       , ("Meta-w", "focus on the world map")
-      , ("Meta-e", "focus on the info")
+      , ("Meta-e", "focus on the robot inventory")
       , ("Meta-r", "focus on the REPL")
+      , ("Meta-t", "focus on the info panel")
       ]
     helpCommands =
       vBox [ hCenter $ txt "Commands"
@@ -282,63 +288,11 @@ drawCell i w = case W.lookupEntity i w of
   Just e  -> displayEntity e
   Nothing -> displayTerrain (toEnum (W.lookupTerrain i w))
 
--- | Draw the info panel on the left-hand side of the UI.
-drawInfoPanel :: AppState -> Widget Name
-drawInfoPanel s
-  = vBox
-    [ drawRobotInfo s
-    , hBorder
-    , vLimitPercent 50 $ padBottom Max $ padAll 1 $ drawMessageBox s
-    ]
-
--- | Draw the lower half of the info panel, which either shows info
---   about the currently focused inventory item, or shows the most
---   recent entries in the message queue.
-drawMessageBox :: AppState -> Widget Name
-drawMessageBox s = case s ^. uiState . uiFocusRing . to focusGetCurrent of
-  Just InfoPanel -> explainFocusedItem s
-  _              -> drawMessages (s ^. gameState . messageQueue)
-
--- | Display info about the currently focused inventory entity,
---   such as its description and relevant recipes.
-explainFocusedItem :: AppState -> Widget Name
-explainFocusedItem s = case mItem of
-  Nothing                   -> txt " "
-  Just (Separator _)        -> txt " "
-  Just (InventoryEntry _ e) -> vBox $
-    map (padBottom (Pad 1) . txtWrap) (e ^. entityDescription)
-    ++
-    explainRecipes e
-  where
-    mList = s ^? uiState . uiInventory . _Just . _2
-    mItem = mList >>= BL.listSelectedElement >>= (Just . snd)
-
-    indent2 = defaultWrapSettings { fillStrategy = FillIndent 2 }
-
-    explainRecipes :: Entity -> [Widget Name]
-    explainRecipes = map (txtWrapWith indent2 . prettyRecipe) . recipesWith
-
-    recipesWith :: Entity -> [Recipe Entity]
-    recipesWith e = S.toList . S.fromList $
-         recipesFor (s ^. gameState . recipesOut) e
-      ++ recipesFor (s ^. gameState . recipesIn) e
-      -- We remove duplicates by converting to and from a Set,
-      -- because some recipes can have an item as both an input and an
-      -- output (e.g. some recipes that require a furnace); those
-      -- recipes would show up twice above.
-
--- | Draw a list of messages.
-drawMessages :: [Text] -> Widget Name
-drawMessages [] = txt " "
-drawMessages ms = Widget Fixed Fixed $ do
-  ctx <- getContext
-  let h   = ctx ^. availHeightL
-  render . vBox . map txt . reverse . take h $ ms
-
+-- | Draw the robot panel on the top left of the UI.
 -- | Draw info about the currently focused robot, such as its name,
 --   position, orientation, and inventory.
-drawRobotInfo :: AppState -> Widget Name
-drawRobotInfo s = case (s ^. gameState . to focusedRobot, s ^. uiState . uiInventory) of
+drawRobotPanel :: AppState -> Widget Name
+drawRobotPanel s = case (s ^. gameState . to focusedRobot, s ^. uiState . uiInventory) of
   (Just r, Just (_, lst)) ->
     let V2 x y = r ^. robotLocation in
     padBottom Max
@@ -352,7 +306,7 @@ drawRobotInfo s = case (s ^. gameState . to focusedRobot, s ^. uiState . uiInven
     ]
   _ -> padBottom Max $ str " "
   where
-    isFocused = (s ^. uiState . uiFocusRing . to focusGetCurrent) == Just InfoPanel
+    isFocused = (s ^. uiState . uiFocusRing . to focusGetCurrent) == Just RobotPanel
 
 -- | Draw an inventory entry.
 drawItem :: Maybe Int -- ^ The index of the currently selected inventory entry
@@ -382,6 +336,49 @@ drawLabelledEntityName e = hBox
   [ padRight (Pad 2) (displayEntity e)
   , txt (e ^. entityName)
   ]
+
+-- | Draw the info panel in the bottom-left corner, which shows info
+--   about the currently focused inventory item.
+drawInfoPanel :: AppState -> Widget Name
+drawInfoPanel s =
+  viewport InfoViewport Vertical .
+  padLeftRight 1 $ explainFocusedItem s
+  -- drawMessages (s ^. gameState . messageQueue)
+
+-- | Display info about the currently focused inventory entity,
+--   such as its description and relevant recipes.
+explainFocusedItem :: AppState -> Widget Name
+explainFocusedItem s = case mItem of
+  Nothing                   -> txt " "
+  Just (Separator _)        -> txt " "
+  Just (InventoryEntry _ e) -> vBox $
+    map (padBottom (Pad 1) . txtWrap) (e ^. entityDescription)
+    ++
+    explainRecipes e
+  where
+    mList = s ^? uiState . uiInventory . _Just . _2
+    mItem = mList >>= BL.listSelectedElement >>= (Just . snd)
+
+    explainRecipes :: Entity -> [Widget Name]
+    explainRecipes = map (txtWrapWith indent2 . prettyRecipe) . recipesWith
+
+    recipesWith :: Entity -> [Recipe Entity]
+    recipesWith e = S.toList . S.fromList $
+         recipesFor (s ^. gameState . recipesOut) e
+      ++ recipesFor (s ^. gameState . recipesIn) e
+      -- We remove duplicates by converting to and from a Set,
+      -- because some recipes can have an item as both an input and an
+      -- output (e.g. some recipes that require a furnace); those
+      -- recipes would show up twice above.
+
+indent2 :: WrapSettings
+indent2 = defaultWrapSettings { fillStrategy = FillIndent 2 }
+
+-- | Draw a list of messages.
+drawMessages :: [Text] -> Widget Name
+drawMessages [] = txt " "
+drawMessages ms = vBox . map (txtWrapWith indent2) . reverse $ ms
+
 
 -- | Draw the REPL.
 drawREPL :: AppState -> Widget Name

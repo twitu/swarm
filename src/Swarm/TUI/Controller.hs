@@ -110,8 +110,9 @@ handleEvent s ev = do
   case ev of
     ControlKey 'q'      -> shutdown s
     MetaKey 'w'         -> setFocus s WorldPanel
-    MetaKey 'e'         -> setFocus s InfoPanel
+    MetaKey 'e'         -> setFocus s RobotPanel
     MetaKey 'r'         -> setFocus s REPLPanel
+    MetaKey 't'         -> setFocus s InfoPanel
     FKey 1              -> toggleModal s HelpModal
     _anyOtherEvent | isJust (s ^. uiState . uiModal) -> continueWithoutRedraw s
                    | otherwise ->
@@ -119,6 +120,7 @@ handleEvent s ev = do
       case focusGetCurrent (s ^. uiState . uiFocusRing) of
         Just REPLPanel  -> handleREPLEvent s ev
         Just WorldPanel -> handleWorldEvent s ev
+        Just RobotPanel -> handleRobotPanelEvent s ev
         Just InfoPanel  -> handleInfoPanelEvent s ev
         _               -> continueWithoutRedraw s
 
@@ -486,12 +488,12 @@ adjustTPS :: (Int -> Int -> Int) -> AppState -> AppState
 adjustTPS (+/-) = uiState . lgTicksPerSecond %~ (+/- 1)
 
 ------------------------------------------------------------
--- Info panel events
+-- Robot panel events
 ------------------------------------------------------------
 
--- | Handle user input events in the info panel.
-handleInfoPanelEvent :: AppState -> BrickEvent Name AppEvent -> EventM Name (Next AppState)
-handleInfoPanelEvent s (VtyEvent (V.EvKey V.KEnter [])) = do
+-- | Handle user input events in the robot panel.
+handleRobotPanelEvent :: AppState -> BrickEvent Name AppEvent -> EventM Name (Next AppState)
+handleRobotPanelEvent s (VtyEvent (V.EvKey V.KEnter [])) = do
   let mList = s ^? uiState . uiInventory . _Just . _2
   case mList >>= BL.listSelectedElement of
     Nothing -> continueWithoutRedraw s
@@ -507,7 +509,7 @@ handleInfoPanelEvent s (VtyEvent (V.EvKey V.KEnter [])) = do
           & gameState . robotMap . ix "base" . machine .~ initMachine mkPT topEnv
         _          -> continueWithoutRedraw s
 
-handleInfoPanelEvent s (VtyEvent ev) = do
+handleRobotPanelEvent s (VtyEvent ev) = do
   let mList = s ^? uiState . uiInventory . _Just . _2
   case mList of
     Nothing -> continueWithoutRedraw s
@@ -515,4 +517,19 @@ handleInfoPanelEvent s (VtyEvent ev) = do
       l' <- handleListEventWithSeparators ev (is _Separator) l
       let s' = s & uiState . uiInventory . _Just . _2 .~ l'
       continue s'
-handleInfoPanelEvent s _ = continueWithoutRedraw s
+handleRobotPanelEvent s _ = continueWithoutRedraw s
+
+------------------------------------------------------------
+-- Info panel events
+------------------------------------------------------------
+
+handleInfoPanelEvent :: AppState -> BrickEvent Name AppEvent -> EventM Name (Next AppState)
+handleInfoPanelEvent s = \case
+  VtyEvent (V.EvKey V.KDown [])     -> vScrollBy infoScroll 1 >> continue s
+  VtyEvent (V.EvKey V.KUp [])       -> vScrollBy infoScroll (-1) >> continue s
+  VtyEvent (V.EvKey V.KPageDown []) -> vScrollPage infoScroll Down >> continue s
+  VtyEvent (V.EvKey V.KPageUp [])   -> vScrollPage infoScroll Up >> continue s
+  VtyEvent (V.EvKey V.KHome [])     -> vScrollToBeginning infoScroll >> continue s
+  VtyEvent (V.EvKey V.KEnd [])      -> vScrollToEnd infoScroll >> continue s
+  _                                 -> continueWithoutRedraw s
+

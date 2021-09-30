@@ -31,7 +31,7 @@ module Swarm.TUI.Model
     -- ** Fields
 
   , uiFocusRing, uiReplForm, uiReplType, uiReplHistory, uiReplHistIdx, uiReplLast
-  , uiInventory, uiError, uiModal, lgTicksPerSecond
+  , uiInventory, uiInfoText, uiError, uiModal, lgTicksPerSecond
   , lastFrameTime, accumulatedTime, tickCount, frameCount, lastInfoTime
   , uiShowFPS, uiTPF, uiFPS
 
@@ -46,6 +46,7 @@ module Swarm.TUI.Model
     -- ** Updating
 
   , populateInventoryList
+  , infoScroll
 
     -- * App state
   , AppState
@@ -62,6 +63,7 @@ import           Control.Monad.State
 import           Data.List            (findIndex, sortOn)
 import           Data.Maybe           (fromMaybe)
 import           Data.Text            (Text)
+import qualified Data.Text            as T
 import qualified Data.Vector          as V
 import           System.Clock
 import           Text.Read            (readMaybe)
@@ -96,13 +98,18 @@ data AppEvent = Frame
 data Name
   = REPLPanel      -- ^ The panel containing the REPL.
   | WorldPanel     -- ^ The panel containing the world view.
-  | InfoPanel      -- ^ The info panel on the left side.
+  | RobotPanel     -- ^ The panel showing robot info and inventory on the top left.
+  | InfoPanel      -- ^ The info panel on the bottom left.
   | REPLInput      -- ^ The REPL input form.
   | WorldCache     -- ^ The render cache for the world view.
   | WorldExtent    -- ^ The cached extent for the world view.
   | InventoryList  -- ^ The list of inventory items for the currently
                    --   focused robot.
+  | InfoViewport   -- ^ The scrollable viewport for the info panel.
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
+
+infoScroll :: ViewportScroll Name
+infoScroll = viewportScroll InfoViewport
 
 data Modal
   = HelpModal
@@ -144,6 +151,7 @@ data UIState = UIState
   , _uiReplHistory    :: [REPLHistItem]
   , _uiReplHistIdx    :: Int
   , _uiInventory      :: Maybe (Int, BL.List Name InventoryEntry)
+  , _uiInfoText       :: Text
   , _uiError          :: Maybe (Widget Name)
   , _uiModal          :: Maybe Modal
   , _uiShowFPS        :: Bool
@@ -186,6 +194,9 @@ uiReplHistIdx :: Lens' UIState Int
 --   inventory changed) along with a list of the items in the
 --   focused robot's inventory.
 uiInventory :: Lens' UIState (Maybe (Int, BL.List Name InventoryEntry))
+
+-- | The text which should be displayed in the bottom-left info panel.
+uiInfoText :: Lens' UIState Text
 
 -- | When this is @Just@, it represents a popup box containing an
 --   error message that is shown on top of the rest of the UI.
@@ -230,7 +241,7 @@ accumulatedTime :: Lens' UIState TimeSpec
 
 -- | The initial state of the focus ring.
 initFocusRing :: FocusRing Name
-initFocusRing = focusRing [REPLPanel, InfoPanel, WorldPanel]
+initFocusRing = focusRing [REPLPanel, InfoPanel, RobotPanel, WorldPanel]
 
 -- | The default REPL prompt.
 replPrompt :: Text
@@ -261,6 +272,32 @@ initUIState = liftIO $ do
     , _uiReplHistIdx    = -1
     , _uiReplLast       = ""
     , _uiInventory      = Nothing
+    , _uiInfoText       = T.unlines
+                          [ "Welcome to"
+                          , "|<< |   | |  | |<<  |\\ /| "
+                          , "--  | < | |><| |>>| | < | "
+                          , ">>| |/ \\| |  | |  \\ |   | "
+                          , "many"
+                          , "many2"
+                          , "many3"
+                          , "many4"
+                          , "many5"
+                          , "many"
+                          , "many2"
+                          , "many3"
+                          , "many4"
+                          , "many5"
+                          , "many"
+                          , "many2"
+                          , "many3"
+                          , "many4"
+                          , "many5"
+                          , "many"
+                          , "many2"
+                          , "many3"
+                          , "many4"
+                          , "many5"
+                          ]
     , _uiError          = Nothing
     , _uiModal          = Nothing
     , _uiShowFPS        = False
