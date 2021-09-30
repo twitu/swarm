@@ -235,6 +235,8 @@ prettyCEK (Out v k) = unlines
 prettyCEK (Up e k) = unlines
   [ "! " ++ from (formatExn e)
   , "  " ++ prettyCont k ]
+prettyCEK (Waiting t cek) =
+  "🕑" <> show t <> " " <> show cek
 
 -- | Poor pretty-printing of continuations.
 prettyCont :: Cont -> String
